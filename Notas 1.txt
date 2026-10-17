@@ -1,0 +1,11 @@
+Las estrategias metodologicas son los temas que se desarrollaran en la semana
+
+Cada docente tiene tiempos de 45 min
+
+Si el docente tiene 3 horas de clases por semanana y no juntas 45 45 45 entonces habria que que especificar 3 periodos
+
+Si el docente tiene 3 horas de clase por semana y 2 horas van en forma consecutiva entonces los periodos quedarian de la siguiente manera
+periodo 1 y 2 (90 min)
+
+periodo 3 (45 min)
+
