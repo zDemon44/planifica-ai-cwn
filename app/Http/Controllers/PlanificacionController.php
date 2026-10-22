@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Actions\ConstruirPeriodosPlanificacion;
 use App\Http\Requests\GuardarPlanificacionRequest;
 use App\Models\Asignacion;
+use App\Models\DestrezaCurricular;
 use App\Models\Horario;
+use App\Models\IndicadorEvaluacion;
 use App\Models\PeriodoAcademico;
 use App\Models\Planificacion;
+use App\Services\CalendarioPlanificaciones;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +22,7 @@ use Illuminate\View\View;
 
 class PlanificacionController extends Controller
 {
-    public function __construct(private ConstruirPeriodosPlanificacion $construirPeriodos) {}
+    public function __construct(private ConstruirPeriodosPlanificacion $construirPeriodos, private CalendarioPlanificaciones $calendario) {}
 
     public function index(Request $request): View
     {
@@ -54,21 +57,29 @@ class PlanificacionController extends Controller
             ->when($filtros['periodo_id'] ?? null, fn ($consulta, $periodoId) => $consulta->whereHas('asignacion.seccion', fn ($secciones) => $secciones->where('periodo_academico_id', $periodoId)))
             ->orderByDesc('fecha_inicio')->orderByDesc('id')->paginate(12)->withQueryString();
 
+        $semanasPendientes = collect();
+        if ($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado) {
+            $fechasRegistradas = Planificacion::where('asignacion_id', $asignacionSeleccionada->id)->pluck('fecha_inicio')->map(fn ($fecha) => Carbon::parse($fecha)->format('Y-m-d'));
+            $semanasPendientes = $this->calendario->semanas($asignacionSeleccionada)
+                ->reject(fn (array $semana): bool => $fechasRegistradas->contains($semana['inicio']))->values();
+        }
+
         return view('Planificaciones.index', [
             'planificaciones' => $planificaciones,
             'periodos' => PeriodoAcademico::orderByDesc('fecha_inicio')->get(),
             'filtros' => $filtros,
             'asignaciones' => $asignaciones,
             'asignacionSeleccionada' => $asignacionSeleccionada,
+            'semanasPendientes' => $semanasPendientes,
         ]);
     }
 
     public function create(Request $request): View
     {
         Gate::authorize('create', Planificacion::class);
-        $datos = $request->validate(['asignacion_id' => ['nullable', 'integer', 'exists:asignaciones,id']]);
+        $datos = $request->validate(['asignacion_id' => ['nullable', 'integer', 'exists:asignaciones,id'], 'fecha_inicio' => ['nullable', 'date_format:Y-m-d']]);
 
-        return $this->formulario(new Planificacion, $request, isset($datos['asignacion_id']) ? (int) $datos['asignacion_id'] : null);
+        return $this->formulario(new Planificacion, $request, isset($datos['asignacion_id']) ? (int) $datos['asignacion_id'] : null, $datos['fecha_inicio'] ?? null);
     }
 
     public function edit(Planificacion $planificacion, Request $request): View
@@ -78,7 +89,7 @@ class PlanificacionController extends Controller
         return $this->formulario($planificacion, $request);
     }
 
-    private function formulario(Planificacion $planificacion, Request $request, ?int $asignacionId = null): View
+    private function formulario(Planificacion $planificacion, Request $request, ?int $asignacionId = null, ?string $inicioSemana = null): View
     {
         $asignaciones = Asignacion::with(['materia', 'seccion.curso', 'seccion.periodo'])
             ->where('docente_id', $request->user()->docente_id)
@@ -91,6 +102,9 @@ class PlanificacionController extends Controller
             return [$asignacion->id => [
                 'periodos' => $bloques->sum(fn (array $bloque): int => $bloque['numero_fin'] - $bloque['numero_inicio'] + 1),
                 'detalle' => $bloques->map(fn (array $bloque): string => $bloque['dia'].' '.$bloque['hora_inicio'].'–'.$bloque['hora_fin'])->implode(' · '),
+                'jornada' => $bloques->isNotEmpty() && substr((string) $bloques->min('hora_inicio'), 0, 5) >= '12:00'
+                    ? 'vespertina'
+                    : 'matutina',
                 'bloques' => $bloques->all(),
             ]];
         });
@@ -99,21 +113,53 @@ class PlanificacionController extends Controller
             : ($asignacionId ? $asignaciones->firstWhere('id', $asignacionId) : null);
         abort_if($asignacionId && ! $asignacionSeleccionada, 404);
 
+        $semanaSeleccionada = null;
+        if (! $planificacion->exists && $asignacionSeleccionada && $inicioSemana) {
+            $semanaSeleccionada = $this->calendario->semanas($asignacionSeleccionada)->firstWhere('inicio', $inicioSemana);
+            abort_unless($semanaSeleccionada, 404);
+        }
+
         $bloquesPlanificacion = $planificacion->exists
             ? $planificacion->periodos()->get()->map(fn ($periodo): array => [
-                ...$periodo->only(['orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana', 'hora_inicio', 'hora_fin']),
+                ...$periodo->only(['orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana', 'fecha_clase', 'hora_inicio', 'hora_fin']),
                 'dia' => $periodo->dia_semana ? Horario::DIAS[$periodo->dia_semana] : 'Horario anterior',
-                ...$periodo->only(['destreza_desempeno', 'indicadores_logro', 'recursos', 'tema', 'anticipacion', 'construccion', 'consolidacion', 'tecnicas_evaluacion']),
+                ...$periodo->only([
+                    'destreza_curricular_id', 'indicador_evaluacion_id',
+                    'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
+                    'tema', 'experiencia', 'reflexion', 'conceptualizacion', 'aplicacion',
+                    'orientaciones_evaluacion',
+                ]),
             ])
-            : collect($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['bloques'] : []);
+            : ($semanaSeleccionada['bloques'] ?? collect($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['bloques'] : []));
 
-        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion'));
+        $jornadaSugerida = $planificacion->jornada
+            ?? ($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['jornada'] : 'matutina');
+
+        $grado = $asignacionSeleccionada?->seccion?->curso?->grado;
+        $destrezasCurriculares = collect();
+        $indicadoresPorDestreza = [];
+        if ($asignacionSeleccionada && $grado) {
+            $destrezasCurriculares = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta
+                ->where('indicadores_evaluacion.activo', true)->orderBy('codigo'), 'indicadores.competencias'])
+                ->where('materia_id', $asignacionSeleccionada->materia_id)
+                ->where('grado', $grado)->where('activo', true)->orderBy('grupo')->orderBy('codigo')->get();
+            $indicadoresPorDestreza = $destrezasCurriculares->mapWithKeys(fn (DestrezaCurricular $destreza): array => [
+                $destreza->id => $destreza->indicadores->map(fn (IndicadorEvaluacion $indicador): array => [
+                    'id' => $indicador->id,
+                    'codigo' => $indicador->codigo,
+                    'descripcion' => $indicador->descripcion,
+                    'competencias' => $indicador->competencias->pluck('codigo')->values()->all(),
+                ])->values()->all(),
+            ])->all();
+        }
+
+        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'destrezasCurriculares', 'indicadoresPorDestreza', 'semanaSeleccionada'));
     }
 
     public function show(Planificacion $planificacion): View
     {
         Gate::authorize('view', $planificacion);
-        $planificacion->load(['asignacion.docente', 'asignacion.materia', 'asignacion.seccion.curso', 'asignacion.seccion.periodo', 'periodos', 'revisor', 'aprobador']);
+        $planificacion->load(['asignacion.docente', 'asignacion.materia', 'asignacion.seccion.curso', 'asignacion.seccion.periodo', 'periodos.destrezaCurricular.competencias', 'periodos.indicadorEvaluacion.competencias', 'revisor', 'aprobador']);
 
         return view('Planificaciones.show', compact('planificacion'));
     }
@@ -125,7 +171,8 @@ class PlanificacionController extends Controller
         $planificacion = DB::transaction(function () use ($datos, $contenidos, $request): Planificacion {
             $asignacion = Asignacion::with('seccion.periodo')->findOrFail($datos['asignacion_id']);
             $this->validarContexto($asignacion, $datos, $request);
-            $periodos = $this->construirPeriodos->handle($asignacion);
+            $contenidos = $this->prepararSeleccionesCurriculares($asignacion->load('seccion.curso'), $contenidos);
+            $periodos = $this->construirPeriodos->handle($asignacion, $datos['fecha_inicio']);
             $this->validarCantidadPeriodos($periodos->count(), $contenidos);
             $datos['numero_periodos'] = $periodos->sum(fn (array $periodo): int => $periodo['numero_fin'] - $periodo['numero_inicio'] + 1);
             $planificacion = Planificacion::create($datos);
@@ -151,6 +198,7 @@ class PlanificacionController extends Controller
                 throw ValidationException::withMessages(['asignacion_id' => 'La asignación de una planificación ya creada no se puede cambiar.']);
             }
             $this->validarContexto($registro->asignacion->load('seccion.periodo'), $datos, $request);
+            $contenidos = $this->prepararSeleccionesCurriculares($registro->asignacion->load('seccion.curso'), $contenidos);
             $registro->fill($datos);
             $registro->version++;
             $registro->save();
@@ -172,11 +220,15 @@ class PlanificacionController extends Controller
             $this->bloquearPeriodo($registro->asignacion);
             Gate::authorize('submit', $registro);
             $this->validarVersion($registro, (int) $datos['version']);
-            if (blank($registro->objetivo_disciplinar)) {
-                throw ValidationException::withMessages(['objetivo_disciplinar' => 'Completa este campo antes de enviar la planificación a revisión.']);
+            if (blank($registro->objetivos_aprendizaje)) {
+                throw ValidationException::withMessages(['objetivos_aprendizaje' => 'Completa este campo antes de enviar la planificación a revisión.']);
             }
             foreach ($registro->periodos()->get() as $indice => $periodo) {
-                foreach (['destreza_desempeno', 'indicadores_logro', 'recursos', 'tema', 'anticipacion', 'construccion', 'consolidacion', 'tecnicas_evaluacion'] as $campo) {
+                foreach ([
+                    'destreza_curricular_id', 'indicador_evaluacion_id', 'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
+                    'tema', 'experiencia', 'reflexion', 'conceptualizacion', 'aplicacion',
+                    'orientaciones_evaluacion',
+                ] as $campo) {
                     if (blank($periodo->{$campo})) {
                         throw ValidationException::withMessages(["periodos.$indice.$campo" => 'Completa este campo antes de enviar la planificación a revisión.']);
                     }
@@ -289,5 +341,43 @@ class PlanificacionController extends Controller
         if ($cantidadEsperada !== count($contenidos)) {
             throw ValidationException::withMessages(['periodos' => 'Los bloques de la planificación no coinciden con el horario actual. Recarga el formulario.']);
         }
+    }
+
+    /** @param array<int, array<string, mixed>> $contenidos
+     * @return array<int, array<string, mixed>>
+     */
+    private function prepararSeleccionesCurriculares(Asignacion $asignacion, array $contenidos): array
+    {
+        $grado = $asignacion->seccion->curso->grado;
+        if (! $grado) {
+            throw ValidationException::withMessages(['asignacion_id' => 'El curso no tiene configurado su número de grado.']);
+        }
+
+        foreach ($contenidos as $indice => &$contenido) {
+            $destrezaId = isset($contenido['destreza_curricular_id']) ? (int) $contenido['destreza_curricular_id'] : 0;
+            $indicadorId = isset($contenido['indicador_evaluacion_id']) ? (int) $contenido['indicador_evaluacion_id'] : 0;
+            if (! $destrezaId && ! $indicadorId) {
+                $contenido['destrezas_criterios_desempeno'] = null;
+                $contenido['indicadores_evaluacion'] = null;
+
+                continue;
+            }
+            if (! $destrezaId || ! $indicadorId) {
+                throw ValidationException::withMessages(["periodos.$indice.indicador_evaluacion_id" => 'Selecciona una destreza y uno de sus indicadores relacionados.']);
+            }
+
+            $destreza = DestrezaCurricular::whereKey($destrezaId)->where('materia_id', $asignacion->materia_id)
+                ->where('grado', $grado)->where('activo', true)->first();
+            $indicador = IndicadorEvaluacion::whereKey($indicadorId)->where('materia_id', $asignacion->materia_id)
+                ->where('grado', $grado)->where('activo', true)->first();
+            if (! $destreza || ! $indicador || ! $destreza->indicadores()->whereKey($indicador->id)->exists()) {
+                throw ValidationException::withMessages(["periodos.$indice.indicador_evaluacion_id" => 'El indicador seleccionado no corresponde a la destreza, materia y grado de esta planificación.']);
+            }
+            $contenido['destrezas_criterios_desempeno'] = $destreza->descripcion;
+            $contenido['indicadores_evaluacion'] = $indicador->descripcion;
+        }
+        unset($contenido);
+
+        return $contenidos;
     }
 }

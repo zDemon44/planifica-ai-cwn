@@ -12,6 +12,7 @@
 .planning-subject-empty{grid-column:1/-1;padding:48px;text-align:center}
 .planning-subject-empty h2{margin:0 0 7px}
 .planning-subject-empty p{margin:0;color:var(--muted)}
+.planning-pending-weeks{margin-bottom:20px}.planning-pending-weeks .panel-heading{display:flex;align-items:center;justify-content:space-between}.planning-pending-total{padding:6px 10px;border-radius:999px;background:#e8eef8;color:var(--brand);font-size:11px;font-weight:800}.planning-week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:18px}.planning-week-grid a{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f8f9fc;color:var(--text)}.planning-week-grid a:hover{border-color:var(--brand);background:#fff}.planning-week-grid span{color:var(--brand);font-size:10px;font-weight:800;text-transform:uppercase}.planning-week-grid strong{font-size:13px}.planning-week-grid small{color:var(--muted)}.planning-week-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
 .planning-status{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;background:#eef2f8;color:#52627c}
 .planning-status-en_revision{background:#e8eef8;color:#17366b}
 .planning-status-revisada{background:#eaf0fc;color:#355c99}
@@ -75,7 +76,8 @@
 .planning-period-badge{padding:6px 10px;border-radius:999px;background:#e3e9f3;color:var(--brand);font-size:11px;font-weight:800;white-space:nowrap}
 .planning-period-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px}
 .planning-period-fields .field{margin:0}
-.planning-strategies{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0;padding:18px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe}
+.planning-curriculum-field select{height:auto;min-height:46px}.planning-curriculum-field label::after{content:'Catálogo curricular';float:right;color:var(--accent);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.planning-strategies{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0;padding:18px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe}
 .planning-strategies legend{padding:0 8px;color:var(--brand);font-weight:800;font-size:13px}
 .planning-strategies>p{grid-column:1/-1;margin:0;color:var(--muted);font-size:12px}
 .planning-strategy-topic{grid-column:1/-1}

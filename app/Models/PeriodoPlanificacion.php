@@ -16,13 +16,28 @@ class PeriodoPlanificacion extends Model
 
     protected $fillable = [
         'orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana',
-        'hora_inicio', 'hora_fin', 'destreza_desempeno', 'indicadores_logro',
-        'recursos', 'tema', 'anticipacion', 'construccion', 'consolidacion',
-        'tecnicas_evaluacion',
+        'fecha_clase', 'hora_inicio', 'hora_fin', 'destreza_curricular_id', 'indicador_evaluacion_id', 'destrezas_criterios_desempeno',
+        'indicadores_evaluacion', 'recursos', 'tema', 'experiencia', 'reflexion',
+        'conceptualizacion', 'aplicacion', 'orientaciones_evaluacion',
     ];
 
     public function planificacion(): BelongsTo
     {
         return $this->belongsTo(Planificacion::class);
+    }
+
+    protected function casts(): array
+    {
+        return ['fecha_clase' => 'date'];
+    }
+
+    public function destrezaCurricular(): BelongsTo
+    {
+        return $this->belongsTo(DestrezaCurricular::class);
+    }
+
+    public function indicadorEvaluacion(): BelongsTo
+    {
+        return $this->belongsTo(IndicadorEvaluacion::class);
     }
 }

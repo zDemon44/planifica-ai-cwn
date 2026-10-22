@@ -33,4 +33,14 @@ class PeriodoAcademico extends Model
     {
         return $this->hasMany(Recreo::class, 'periodo_academico_id');
     }
+
+    public function cierresTrimestrales(): HasMany
+    {
+        return $this->hasMany(CierreTrimestral::class)->orderBy('numero');
+    }
+
+    public function diasNoClase(): HasMany
+    {
+        return $this->hasMany(DiaNoClase::class)->orderBy('fecha');
+    }
 }

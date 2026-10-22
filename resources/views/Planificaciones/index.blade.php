@@ -40,10 +40,28 @@
             </div>
             <div class="planning-toolbar-actions">
                 @if($asignacionSeleccionada)<a class="secondary-button" href="{{ route('planificaciones.index') }}">Mis materias</a>@endif
-                @if($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado)<a class="primary-button" href="{{ route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id]) }}">+ Nueva planificación</a>@endif
+                @if($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado)
+                    @if($semanasPendientes->isNotEmpty())
+                        <a class="primary-button" href="{{ route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id, 'fecha_inicio' => $semanasPendientes->first()['inicio']]) }}">Completar siguiente semana</a>
+                    @else
+                        <a class="primary-button" href="{{ route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id]) }}">+ Nueva planificación</a>
+                    @endif
+                @endif
             </div>
         </div>
         @if(session('success'))<p class="success-message" role="status">{{ session('success') }}</p>@endif
+        @if($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado)
+            <section class="panel planning-pending-weeks">
+                <div class="panel-heading"><div><h2>Planificaciones por llenar</h2><p>Se muestran únicamente semanas con clases. Los días suspendidos ya están excluidos de sus bloques.</p></div><span class="planning-pending-total">{{ $semanasPendientes->count() }} pendientes</span></div>
+                <div class="planning-week-grid">
+                    @forelse($semanasPendientes as $semana)
+                        <a href="{{ route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id, 'fecha_inicio' => $semana['inicio']]) }}"><span>Semana {{ $semana['numero'] }}</span><strong>{{ Carbon\Carbon::parse($semana['inicio'])->format('d/m') }} – {{ Carbon\Carbon::parse($semana['fin'])->format('d/m/Y') }}</strong><small>Trimestre {{ $semana['trimestre'] }} · {{ $semana['bloques']->count() }} bloques por llenar</small></a>
+                    @empty
+                        <div class="planning-week-empty">No quedan semanas lectivas pendientes para esta materia.</div>
+                    @endforelse
+                </div>
+            </section>
+        @endif
         <section class="panel record-list">
             <form method="GET" action="{{ route('planificaciones.index') }}" class="planning-filters">
                 @if($asignacionSeleccionada)<input type="hidden" name="asignacion_id" value="{{ $asignacionSeleccionada->id }}">@endif

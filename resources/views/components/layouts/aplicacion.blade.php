@@ -8,8 +8,19 @@
     <link rel="icon" href="{{ asset('images/logo-cwn.png') }}">
     <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}?v={{ filemtime(public_path('css/dashboard.css')) }}">
     @if(request()->routeIs('planificaciones.*'))<link rel="stylesheet" href="{{ asset('css/planificaciones.css') }}?v={{ filemtime(public_path('css/planificaciones.css')) }}">@endif
+    @if(request()->routeIs('catalogo-curricular.*'))<link rel="stylesheet" href="{{ asset('css/catalogo-curricular.css') }}?v={{ filemtime(public_path('css/catalogo-curricular.css')) }}">@endif
+    @if(request()->routeIs('seguimiento-curricular.*'))<link rel="stylesheet" href="{{ asset('css/seguimiento-curricular.css') }}?v={{ filemtime(public_path('css/seguimiento-curricular.css')) }}">@endif
     @if(request()->routeIs('horarios.*', 'recreos.*'))<link rel="stylesheet" href="{{ asset('css/horarios.css') }}?v={{ filemtime(public_path('css/horarios.css')) }}">@endif
+    @if(request()->routeIs('cronogramas.*'))
+        <link rel="stylesheet" href="{{ asset('vendor/flatpickr/flatpickr.min.css') }}?v={{ filemtime(public_path('vendor/flatpickr/flatpickr.min.css')) }}">
+        <link rel="stylesheet" href="{{ asset('css/cronogramas.css') }}?v={{ filemtime(public_path('css/cronogramas.css')) }}">
+    @endif
     <script src="{{ asset('js/dashboard.js') }}?v={{ filemtime(public_path('js/dashboard.js')) }}" defer></script>
+    @if(request()->routeIs('cronogramas.*'))
+        <script src="{{ asset('vendor/flatpickr/flatpickr.min.js') }}?v={{ filemtime(public_path('vendor/flatpickr/flatpickr.min.js')) }}" defer></script>
+        <script src="{{ asset('vendor/flatpickr/l10n/es.js') }}?v={{ filemtime(public_path('vendor/flatpickr/l10n/es.js')) }}" defer></script>
+        <script src="{{ asset('js/cronogramas.js') }}?v={{ filemtime(public_path('js/cronogramas.js')) }}" defer></script>
+    @endif
     <link rel="stylesheet" href="{{ asset('css/gestion.css') }}?v={{ filemtime(public_path('css/gestion.css')) }}">@livewireStyles</head>
 <body>
     <a class="skip-link" href="#principal">Ir al contenido</a>

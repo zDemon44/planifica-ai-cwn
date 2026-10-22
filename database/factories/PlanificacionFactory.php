@@ -33,16 +33,13 @@ class PlanificacionFactory extends Factory
         return [
             'asignacion_id' => Asignacion::factory(),
             'trimestre' => 1,
+            'titulo_unidad' => 'Conocemos y cuidamos nuestro entorno',
+            'jornada' => 'matutina',
             'numero_semana' => 1,
             'fecha_inicio' => '2026-06-01',
             'fecha_fin' => '2026-06-05',
             'numero_periodos' => 3,
-            'objetivo_disciplinar' => 'Objetivo de aprendizaje',
-            'destreza_desempeno' => 'Destreza con criterio de desempeño',
-            'indicadores_logro' => 'Indicadores de logro',
-            'recursos' => 'Recursos didácticos',
-            'estrategias_metodologicas' => 'Estrategias metodológicas',
-            'tecnicas_evaluacion' => 'Técnicas e instrumentos de evaluación',
+            'objetivos_aprendizaje' => 'Objetivos de aprendizaje de la semana',
         ];
     }
 }

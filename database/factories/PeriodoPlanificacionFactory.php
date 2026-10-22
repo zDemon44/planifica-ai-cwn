@@ -27,14 +27,15 @@ class PeriodoPlanificacionFactory extends Factory
             'dia_semana' => 1,
             'hora_inicio' => '07:00',
             'hora_fin' => '07:45',
-            'destreza_desempeno' => 'Destreza con criterio de desempeño',
-            'indicadores_logro' => 'Indicadores de logro',
+            'destrezas_criterios_desempeno' => 'Destrezas con criterios de desempeño',
+            'indicadores_evaluacion' => 'Indicadores de evaluación',
             'recursos' => 'Recursos didácticos',
             'tema' => 'Tema de la clase',
-            'anticipacion' => 'Activación de conocimientos previos',
-            'construccion' => 'Desarrollo del aprendizaje',
-            'consolidacion' => 'Aplicación de lo aprendido',
-            'tecnicas_evaluacion' => 'Observación y rúbrica',
+            'experiencia' => 'Activación de conocimientos previos',
+            'reflexion' => 'Preguntas para analizar la experiencia',
+            'conceptualizacion' => 'Construcción de los nuevos conceptos',
+            'aplicacion' => 'Aplicación de lo aprendido',
+            'orientaciones_evaluacion' => 'Observación directa y lista de cotejo',
         ];
     }
 }

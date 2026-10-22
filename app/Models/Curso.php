@@ -21,11 +21,11 @@ class Curso extends Model
 
     use HasFactory;
 
-    protected $fillable = ['nombre', 'subnivel', 'orden', 'es_final'];
+    protected $fillable = ['nombre', 'grado', 'subnivel', 'orden', 'es_final'];
 
     protected function casts(): array
     {
-        return ['es_final' => 'boolean', 'orden' => 'integer'];
+        return ['es_final' => 'boolean', 'orden' => 'integer', 'grado' => 'integer'];
     }
 
     public function secciones(): HasMany

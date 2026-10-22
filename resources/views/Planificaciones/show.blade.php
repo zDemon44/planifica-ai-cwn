@@ -16,7 +16,7 @@
     @endphp
     <div class="page-heading planning-toolbar">
         <div>
-            <p class="eyebrow">PLAN MICROCURRICULAR SEMANAL</p>
+            <p class="eyebrow">PLANIFICACIÓN MICROCURRICULAR</p>
             <h1>Semana {{ $planificacion->numero_semana }} · {{ $planificacion->asignacion->materia->nombre }}</h1>
             <p>{{ $planificacion->asignacion->seccion->etiqueta }}</p>
         </div>
@@ -52,7 +52,7 @@
                 width="82" height="82">
             <div>
                 <p>Escuela de Educación Básica Carmen Wither Navarro</p>
-                <h2>Plan microcurricular semanal</h2><span>Período lectivo
+                <h2>Planificación microcurricular</h2><span>Período lectivo
                     {{ $planificacion->asignacion->seccion->periodo->nombre }}</span>
             </div><span
                 class="planning-status planning-status-{{ $planificacion->estado }}">{{ App\Models\Planificacion::ESTADOS[$planificacion->estado] }}</span>
@@ -64,10 +64,6 @@
                     <dt>Docente</dt>
                     <dd>{{ $planificacion->asignacion->docente->nombres }}
                         {{ $planificacion->asignacion->docente->apellidos }}</dd>
-                </div>
-                <div>
-                    <dt>Área</dt>
-                    <dd>{{ $planificacion->area ?: '—' }}</dd>
                 </div>
                 <div>
                     <dt>Asignatura</dt>
@@ -87,7 +83,15 @@
                 </div>
                 <div>
                     <dt>Trimestre</dt>
-                    <dd>{{ $planificacion->trimestre }}</dd>
+                    <dd>{{ ['Primer', 'Segundo', 'Tercer'][$planificacion->trimestre - 1] }} trimestre</dd>
+                </div>
+                <div>
+                    <dt>Título de la unidad</dt>
+                    <dd>{{ $planificacion->titulo_unidad ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt>Jornada</dt>
+                    <dd>{{ ucfirst($planificacion->jornada) }}</dd>
                 </div>
                 <div>
                     <dt>Semana</dt>
@@ -104,18 +108,14 @@
             </dl>
         </section>
         <section class="planning-document-section">
-            <h3>Aprendizaje disciplinar</h3>
+            <h3>2. Aprendizaje disciplinar</h3>
             <div class="planning-text-block">
-                <h4>Objetivo disciplinar</h4>
-                <p>{{ $planificacion->objetivo_disciplinar ?: '—' }}</p>
-            </div>
-            <div class="planning-text-block">
-                <h4>Estándar de aprendizaje</h4>
-                <p>{{ $planificacion->estandar_aprendizaje ?: '—' }}</p>
+                <h4>Objetivos de aprendizaje</h4>
+                <p>{{ $planificacion->objetivos_aprendizaje ?: '—' }}</p>
             </div>
         </section>
         <section class="planning-document-section">
-            <h3>2. Planificación</h3>
+            <h3>Desarrollo por bloques de períodos</h3>
             <div class="planning-period-documents">
                 @foreach ($planificacion->periodos as $periodo)
                     <article class="planning-period-document">
@@ -124,25 +124,32 @@
                                 <small>({{ $periodo->duracion_minutos }} min)</small></h4>
                             @if ($periodo->dia_semana)
                                 <span>{{ App\Models\Horario::DIAS[$periodo->dia_semana] }} ·
+                                    @if($periodo->fecha_clase){{ $periodo->fecha_clase->format('d/m/Y') }} · @endif
                                     {{ substr($periodo->hora_inicio, 0, 5) }}–{{ substr($periodo->hora_fin, 0, 5) }}</span>
                             @endif
                         </header>
                         <div class="planning-content-grid">
                             @foreach ([
-        'destreza_desempeno' => 'Destreza con criterio de desempeño',
-        'indicadores_logro' => 'Indicadores de logro',
+        'destrezas_criterios_desempeno' => 'Destrezas con criterios de desempeño (estándar)',
+        'indicadores_evaluacion' => 'Indicadores de evaluación',
         'recursos' => 'Recursos',
-        'tecnicas_evaluacion' => 'Técnicas / instrumentos de evaluación',
+        'orientaciones_evaluacion' => 'Orientaciones para la evaluación',
     ] as $campo => $etiqueta)
                                 <div class="planning-text-block">
-                                    <h4>{{ $etiqueta }}</h4>
+                                    <h4>{{ $etiqueta }}
+                                        @if($campo === 'destrezas_criterios_desempeno' && $periodo->destrezaCurricular)
+                                            · {{ $periodo->destrezaCurricular->codigo }}@if($periodo->destrezaCurricular->competencias->isNotEmpty()) · {{ $periodo->destrezaCurricular->competencias->pluck('codigo')->implode(', ') }}@endif
+                                        @elseif($campo === 'indicadores_evaluacion' && $periodo->indicadorEvaluacion)
+                                            · {{ $periodo->indicadorEvaluacion->codigo }}@if($periodo->indicadorEvaluacion->competencias->isNotEmpty()) · {{ $periodo->indicadorEvaluacion->competencias->pluck('codigo')->implode(', ') }}@endif
+                                        @endif
+                                    </h4>
                                     <p>{{ $periodo->{$campo} ?: '—' }}</p>
                                 </div>
                             @endforeach
                             <section class="planning-methodology-block">
-                                <h4>Estrategias metodológicas</h4>
+                                <h4>Orientaciones metodológicas para la enseñanza aprendizaje</h4>
                                 <div class="planning-methodology-steps">
-                                    @foreach (['tema' => 'Tema', 'anticipacion' => 'Anticipación', 'construccion' => 'Construcción', 'consolidacion' => 'Consolidación'] as $campo => $etiqueta)
+                                    @foreach (['tema' => 'Tema', 'experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
                                         <div><span>{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                                             <div>
                                                 <h5>{{ $etiqueta }}</h5>
@@ -159,17 +166,13 @@
         </section>
         <section class="planning-document-section">
             <h3>3. Adaptaciones curriculares</h3>
-            <div class="planning-text-block">
-                <h4>Especifique la adaptación</h4>
-                <p>{{ $planificacion->adaptacion_especificacion ?: '—' }}</p>
-            </div>
             <div class="planning-content-grid">
                 @foreach ([
-        'adaptacion_destreza' => 'Destreza con criterio de desempeño',
-        'adaptacion_indicadores' => 'Indicadores de logro',
+        'adaptacion_destreza' => 'Destrezas con criterios de desempeño',
+        'adaptacion_indicadores_evaluacion' => 'Indicadores de evaluación',
         'adaptacion_recursos' => 'Recursos',
-        'adaptacion_estrategias' => 'Estrategias metodológicas',
-        'adaptacion_evaluacion' => 'Técnicas e instrumentos de evaluación',
+        'adaptacion_orientaciones_metodologicas' => 'Orientaciones metodológicas para la enseñanza aprendizaje',
+        'adaptacion_actividades_evaluacion_formativa' => 'Actividades e instrumentos de evaluación formativa',
     ] as $campo => $etiqueta)
                     <div class="planning-text-block">
                         <h4>{{ $etiqueta }}</h4>
@@ -202,7 +205,7 @@
         @if($puedeEditar)
             <section class="panel">
                 <h2>Enviar a revisión</h2>
-                <p>Completa el objetivo y todos los campos de cada bloque antes de enviar.</p>
+                <p>Completa los objetivos de aprendizaje y todos los campos de cada bloque antes de enviar.</p>
                 <form method="POST" action="{{ route('planificaciones.submit', $planificacion) }}">@csrf<input
                         type="hidden" name="version" value="{{ $planificacion->version }}"><button class="primary-button"
                         type="submit">Enviar a revisión</button></form>

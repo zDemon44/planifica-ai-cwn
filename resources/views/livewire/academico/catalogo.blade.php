@@ -34,6 +34,7 @@
                 <div class="form-grid">
                     <x-ui.entrada model="formulario.nombre" :label="$tipoCatalogo === 'secciones' ? 'Paralelo (ej. A)' : 'Nombre'" :required="true" maxlength="100" />
                     @if ($tipoCatalogo === 'cursos')
+                        <x-ui.entrada model="formulario.grado" label="Número de grado" type="number" min="1" max="10" :required="true" />
                         <x-ui.selector model="formulario.subnivel" label="Subnivel *" required>
                             <option value="">Selecciona un subnivel</option>
                             @foreach (App\Models\Curso::SUBNIVELES as $valor => $etiqueta)
@@ -89,6 +90,7 @@
                         @if ($tipoCatalogo === 'cursos')
                             <th>Orden</th>
                             <th>Curso</th>
+                            <th>Grado</th>
                             <th>Subnivel</th>
                             <th>Nivel final</th>
                         @elseif($tipoCatalogo === 'periodos')
@@ -108,6 +110,7 @@
                             @if ($tipoCatalogo === 'cursos')
                                 <td>{{ $registro->orden }}</td>
                                 <td>{{ $registro->nombre }}</td>
+                                <td>{{ $registro->grado ? $registro->grado.'.º' : 'Sin definir' }}</td>
                                 <td>{{ App\Models\Curso::SUBNIVELES[$registro->subnivel] ?? 'Sin definir' }}</td>
                                 <td>{{ $registro->es_final ? 'Sí' : 'No' }}</td>
                             @elseif($tipoCatalogo === 'periodos')

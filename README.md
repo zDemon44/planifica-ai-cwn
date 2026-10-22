@@ -25,3 +25,7 @@ Para iniciar el entorno de desarrollo:
 ```bash
 composer run dev
 ```
+
+## Sincronización de cambios SQL
+
+Los cambios incrementales que deban compartirse manualmente entre integrantes se guardan en [`sql/`](sql/README.md). Los archivos usan fecha y un número consecutivo para mantener un orden de ejecución claro.

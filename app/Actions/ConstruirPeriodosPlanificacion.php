@@ -5,14 +5,23 @@ namespace App\Actions;
 use App\Models\Asignacion;
 use App\Models\Horario;
 use App\Models\Recreo;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 class ConstruirPeriodosPlanificacion
 {
     /** @return Collection<int, array{orden: int, numero_inicio: int, numero_fin: int, duracion_minutos: int, dia_semana: int, dia: string, hora_inicio: string, hora_fin: string, incluye_recreo?: bool}> */
-    public function handle(Asignacion $asignacion): Collection
+    public function handle(Asignacion $asignacion, CarbonInterface|string|null $inicioSemana = null): Collection
     {
-        $asignacion->loadMissing('seccion.curso');
+        $asignacion->loadMissing('seccion.curso', 'seccion.periodo');
+        $lunes = $inicioSemana ? Carbon::parse($inicioSemana)->startOfWeek(CarbonInterface::MONDAY) : null;
+        $diasNoClase = $lunes
+            ? $asignacion->seccion->periodo->diasNoClase()
+                ->whereDate('fecha', '<=', $lunes->copy()->endOfWeek())
+                ->get(['fecha', 'fecha_fin'])
+                ->filter(fn ($suspension): bool => ($suspension->fecha_fin ?? $suspension->fecha)->gte($lunes))
+            : [];
         $horario = Horario::with(['bloques' => fn ($consulta) => $consulta
             ->where('materia_id', $asignacion->materia_id)
             ->orderBy('dia_semana')
@@ -29,6 +38,12 @@ class ConstruirPeriodosPlanificacion
         $numeroPeriodo = 0;
 
         foreach ($horario?->bloques ?? collect() as $bloque) {
+            $fechaClase = $lunes?->copy()->addDays($bloque->dia_semana - 1);
+            if ($fechaClase && ($fechaClase->lt($asignacion->seccion->periodo->fecha_inicio)
+                || $fechaClase->gt($asignacion->seccion->periodo->fecha_fin)
+                || collect($diasNoClase)->contains(fn ($suspension): bool => $fechaClase->betweenIncluded($suspension->fecha, $suspension->fecha_fin ?? $suspension->fecha)))) {
+                continue;
+            }
             $horaInicio = substr($bloque->hora_inicio, 0, 5);
             $horaFin = substr($bloque->hora_fin, 0, 5);
             $ultimo = $periodos->last();
@@ -57,6 +72,7 @@ class ConstruirPeriodosPlanificacion
                 'numero_fin' => $numeroPeriodo,
                 'duracion_minutos' => 45,
                 'dia_semana' => $bloque->dia_semana,
+                'fecha_clase' => $fechaClase?->format('Y-m-d'),
                 'dia' => Horario::DIAS[$bloque->dia_semana],
                 'hora_inicio' => $horaInicio,
                 'hora_fin' => $horaFin,

@@ -32,7 +32,7 @@ class CatalogoAcademicoTest extends TestCase
         $this->admin();
         $this->get('/academico')->assertOk()->assertSee('Cursos y períodos');
         $component = Livewire::test(Catalogo::class)->call('create')
-            ->set('formulario.nombre', 'Octavo de básica')->set('formulario.subnivel', 'basica_superior')->set('formulario.orden', 1)->call('save')->assertHasNoErrors()
+            ->set('formulario.nombre', 'Octavo de básica')->set('formulario.grado', 8)->set('formulario.subnivel', 'basica_superior')->set('formulario.orden', 1)->call('save')->assertHasNoErrors()
             ->call('tab', 'periodos')->call('create')->set('formulario.nombre', '2026–2027')
             ->set('formulario.fecha_inicio', '2026-04-01')->set('formulario.fecha_fin', '2027-03-01')->call('save')->assertHasNoErrors();
         $component->call('tab', 'secciones')->call('create')->set('formulario.nombre', 'A')
@@ -109,7 +109,7 @@ class CatalogoAcademicoTest extends TestCase
     {
         $this->admin();
         Curso::factory()->create(['orden' => 3, 'es_final' => true]);
-        Livewire::test(Catalogo::class)->call('create')->set('formulario.nombre', 'Otro')->set('formulario.subnivel', 'bachillerato')->set('formulario.orden', 4)
+        Livewire::test(Catalogo::class)->call('create')->set('formulario.nombre', 'Otro')->set('formulario.grado', 10)->set('formulario.subnivel', 'bachillerato')->set('formulario.orden', 4)
             ->call('save')->assertHasErrors('catalogo')->set('formulario.orden', 2)->set('formulario.es_final', true)
             ->call('save')->assertHasErrors('catalogo');
         $this->assertDatabaseCount('cursos', 1);

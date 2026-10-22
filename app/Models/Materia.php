@@ -23,4 +23,14 @@ class Materia extends Model
     {
         return $this->hasMany(BloqueHorario::class);
     }
+
+    public function destrezasCurriculares(): HasMany
+    {
+        return $this->hasMany(DestrezaCurricular::class);
+    }
+
+    public function indicadoresEvaluacion(): HasMany
+    {
+        return $this->hasMany(IndicadorEvaluacion::class);
+    }
 }

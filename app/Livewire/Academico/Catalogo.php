@@ -41,7 +41,7 @@ class Catalogo extends Component
     {
         $this->autorizarAcceso();
         $this->cancel();
-        $this->formulario = ['nombre' => '', 'subnivel' => '', 'orden' => '', 'es_final' => false, 'fecha_inicio' => '', 'fecha_fin' => '', 'curso_id' => '', 'periodo_academico_id' => ''];
+        $this->formulario = ['nombre' => '', 'grado' => '', 'subnivel' => '', 'orden' => '', 'es_final' => false, 'fecha_inicio' => '', 'fecha_fin' => '', 'curso_id' => '', 'periodo_academico_id' => ''];
         $this->mostrarFormulario = true;
     }
 
@@ -68,6 +68,7 @@ class Catalogo extends Component
         $reglas = match ($this->tipoCatalogo) {
             'cursos' => [
                 'formulario.nombre' => ['required', 'string', 'max:100', Rule::unique('cursos', 'nombre')->ignore($registro)],
+                'formulario.grado' => ['required', 'integer', 'between:1,10'],
                 'formulario.subnivel' => ['required', 'string', Rule::in(array_keys(Curso::SUBNIVELES))],
                 'formulario.orden' => ['required', 'integer', 'min:1', 'max:100', Rule::unique('cursos', 'orden')->ignore($registro)],
                 'formulario.es_final' => ['required', 'boolean'],

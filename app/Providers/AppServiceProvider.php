@@ -29,5 +29,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gestionar-docencia', fn (User $user): bool => $user->esAdministrador());
         Gate::define('gestionar-usuarios', fn (User $user): bool => $user->activo && $user->role === 'SUPERADMIN');
         Gate::define('portal-docente', fn (User $user): bool => $user->esDocente());
+        Gate::define('ver-seguimiento-curricular', fn (User $user): bool => $user->esAdministrador() || $user->esDocente());
+        Gate::define('ver-cronograma', fn (User $user): bool => $user->esAdministrador() || $user->esDocente());
     }
 }

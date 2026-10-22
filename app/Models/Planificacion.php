@@ -24,13 +24,11 @@ class Planificacion extends Model
     protected $table = 'planificaciones';
 
     protected $fillable = [
-        'asignacion_id', 'trimestre', 'numero_semana', 'fecha_inicio', 'fecha_fin',
-        'numero_periodos', 'area', 'objetivo_disciplinar', 'estandar_aprendizaje',
-        'destreza_desempeno', 'indicadores_logro', 'recursos',
-        'estrategias_metodologicas', 'tecnicas_evaluacion',
-        'adaptacion_especificacion', 'adaptacion_destreza',
-        'adaptacion_indicadores', 'adaptacion_recursos',
-        'adaptacion_estrategias', 'adaptacion_evaluacion',
+        'asignacion_id', 'trimestre', 'titulo_unidad', 'jornada', 'numero_semana',
+        'fecha_inicio', 'fecha_fin', 'numero_periodos', 'objetivos_aprendizaje',
+        'adaptacion_destreza', 'adaptacion_indicadores_evaluacion',
+        'adaptacion_recursos', 'adaptacion_orientaciones_metodologicas',
+        'adaptacion_actividades_evaluacion_formativa',
     ];
 
     protected function casts(): array

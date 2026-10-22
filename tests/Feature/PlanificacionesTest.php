@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Asignacion;
 use App\Models\BloqueHorario;
+use App\Models\DestrezaCurricular;
 use App\Models\Docente;
 use App\Models\Horario;
+use App\Models\IndicadorEvaluacion;
 use App\Models\Planificacion;
 use App\Models\Recreo;
 use App\Models\User;
@@ -23,14 +25,14 @@ class PlanificacionesTest extends TestCase
         $administrador = User::factory()->create(['role' => 'ADMIN']);
         $this->actingAs($docente);
 
-        $this->get(route('planificaciones.create'))->assertSee('Objetivo disciplinar');
+        $this->get(route('planificaciones.create'))->assertSee('Objetivos de aprendizaje');
         $this->post(route('planificaciones.store'), $this->datos($asignacion))->assertSessionHasNoErrors();
         $planificacion = Planificacion::sole();
         $this->assertSame('borrador', $planificacion->estado);
         $this->get(route('planificaciones.show', $planificacion))
-            ->assertSee('Plan microcurricular semanal')
+            ->assertSee('Planificación microcurricular')
             ->assertSee('Adaptaciones curriculares')
-            ->assertSeeInOrder(['Estrategias metodológicas', 'Tema', 'Anticipación', 'Construcción', 'Consolidación']);
+            ->assertSeeInOrder(['Orientaciones metodológicas para la enseñanza aprendizaje', 'Tema', 'Experiencia', 'Reflexión', 'Conceptualización', 'Aplicación']);
         $this->post(route('planificaciones.submit', $planificacion), ['version' => 1])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('planificaciones', ['id' => $planificacion->id, 'estado' => 'en_revision', 'version' => 2]);
         $this->get(route('planificaciones.edit', $planificacion))->assertForbidden();
@@ -48,10 +50,10 @@ class PlanificacionesTest extends TestCase
         $asignacion = Asignacion::factory()->create();
         $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
         $administrador = User::factory()->create(['role' => 'SUPERADMIN']);
-        $planificacion = Planificacion::factory()->create(['asignacion_id' => $asignacion->id, 'objetivo_disciplinar' => null]);
+        $planificacion = Planificacion::factory()->create(['asignacion_id' => $asignacion->id, 'objetivos_aprendizaje' => null]);
         $this->actingAs($docente);
 
-        $this->post(route('planificaciones.submit', $planificacion), ['version' => 1])->assertSessionHasErrors('objetivo_disciplinar');
+        $this->post(route('planificaciones.submit', $planificacion), ['version' => 1])->assertSessionHasErrors('objetivos_aprendizaje');
         $this->put(route('planificaciones.update', $planificacion), $this->datos($asignacion, ['version' => 1, 'numero_semana' => 1]))->assertSessionHasNoErrors();
         $this->post(route('planificaciones.submit', $planificacion), ['version' => 1])->assertSessionHasErrors('version');
         $this->post(route('planificaciones.submit', $planificacion), ['version' => 2])->assertSessionHasNoErrors();
@@ -75,6 +77,26 @@ class PlanificacionesTest extends TestCase
         $this->post(route('planificaciones.store'), $this->datos($asignacion))->assertForbidden();
         $this->get(route('planificaciones.index'))->assertDontSee('Semana 1');
 
+    }
+
+    public function test_rechaza_un_indicador_que_no_esta_relacionado_con_la_destreza(): void
+    {
+        $asignacion = Asignacion::factory()->create();
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $datos = $this->datos($asignacion);
+        $indicadorAjeno = IndicadorEvaluacion::create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'codigo' => 'I.LL.2.9.9',
+            'descripcion' => 'Indicador sin relación con la destreza seleccionada.',
+            'grupo' => 9,
+            'activo' => true,
+        ]);
+        $datos['periodos'][0]['indicador_evaluacion_id'] = $indicadorAjeno->id;
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors('periodos.0.indicador_evaluacion_id');
+        $this->assertDatabaseCount('planificaciones', 0);
     }
 
     public function test_docente_navega_planificaciones_por_tarjetas_de_materias_asignadas(): void
@@ -209,7 +231,7 @@ class PlanificacionesTest extends TestCase
     public function test_texto_del_docente_se_muestra_escapado(): void
     {
         $asignacion = Asignacion::factory()->create();
-        $planificacion = Planificacion::factory()->create(['asignacion_id' => $asignacion->id, 'objetivo_disciplinar' => '<script>alert(1)</script>']);
+        $planificacion = Planificacion::factory()->create(['asignacion_id' => $asignacion->id, 'objetivos_aprendizaje' => '<script>alert(1)</script>']);
         $this->actingAs(User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]));
 
         $this->get(route('planificaciones.show', $planificacion))->assertSee('&lt;script&gt;', false)->assertDontSee('<script>alert(1)</script>', false);
@@ -228,6 +250,17 @@ class PlanificacionesTest extends TestCase
 
     private function datos(Asignacion $asignacion, array $cambios = []): array
     {
+        $asignacion->loadMissing('seccion.curso');
+        $grado = $asignacion->seccion->curso->grado;
+        $destreza = DestrezaCurricular::firstOrCreate(
+            ['materia_id' => $asignacion->materia_id, 'grado' => $grado, 'codigo' => 'LL.2.1.1'],
+            ['descripcion' => 'Destrezas con criterios de desempeño', 'grupo' => 1, 'activo' => true]
+        );
+        $indicador = IndicadorEvaluacion::firstOrCreate(
+            ['materia_id' => $asignacion->materia_id, 'grado' => $grado, 'codigo' => 'I.LL.2.1.1'],
+            ['descripcion' => 'Indicadores de evaluación', 'grupo' => 1, 'activo' => true]
+        );
+        $destreza->indicadores()->syncWithoutDetaching($indicador);
         if (! Horario::where('docente_id', $asignacion->docente_id)->where('seccion_id', $asignacion->seccion_id)->exists()) {
             $horario = Horario::factory()->create([
                 'docente_id' => $asignacion->docente_id,
@@ -248,20 +281,22 @@ class PlanificacionesTest extends TestCase
         return array_replace([
             'asignacion_id' => $asignacion->id,
             'trimestre' => 1,
+            'titulo_unidad' => 'Conocemos y cuidamos nuestro entorno',
+            'jornada' => 'matutina',
             'numero_semana' => 4,
             'fecha_inicio' => '2026-06-01',
             'fecha_fin' => '2026-06-05',
-            'area' => 'Ciencias Sociales',
-            'objetivo_disciplinar' => 'Objetivo de aprendizaje',
+            'objetivos_aprendizaje' => 'Objetivos de aprendizaje de la semana',
             'periodos' => array_fill(0, 3, [
-                'destreza_desempeno' => 'Destreza con criterio de desempeño',
-                'indicadores_logro' => 'Indicadores de logro',
+                'destreza_curricular_id' => $destreza->id,
+                'indicador_evaluacion_id' => $indicador->id,
                 'recursos' => 'Recursos didácticos',
                 'tema' => 'Tema de la clase',
-                'anticipacion' => 'Anticipación del aprendizaje',
-                'construccion' => 'Construcción del aprendizaje',
-                'consolidacion' => 'Consolidación del aprendizaje',
-                'tecnicas_evaluacion' => 'Observación y rúbrica',
+                'experiencia' => 'Experiencia de aprendizaje',
+                'reflexion' => 'Reflexión sobre la experiencia',
+                'conceptualizacion' => 'Conceptualización del aprendizaje',
+                'aplicacion' => 'Aplicación de lo aprendido',
+                'orientaciones_evaluacion' => 'Observación directa y lista de cotejo',
             ]),
         ], $cambios);
     }
