@@ -1,18 +1,16 @@
 .planning-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:end;gap:16px;margin-bottom:22px}
 .planning-filters .primary-button{height:43px}
 .planning-subject-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:18px}
-.planning-subject-card{display:flex;flex-direction:column;gap:18px;min-height:280px}
+.planning-subject-card{display:flex;flex-direction:column;gap:18px;min-height:230px}
 .planning-subject-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .planning-subject-card h2{margin:5px 0;color:var(--brand);font-size:23px}
 .planning-subject-card p{margin:0;color:var(--muted)}
-.planning-subject-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding:13px 14px;border-radius:9px;background:#f5f7fb;color:var(--muted);font-size:12px}
-.planning-subject-summary strong{color:var(--brand);font-size:22px}
-.planning-subject-actions{display:flex;gap:9px}
-.planning-subject-actions .secondary-button{flex:1}
+.planning-subject-actions{display:flex;margin-top:auto}
+.planning-subject-actions .primary-button{width:100%;text-align:center}
 .planning-subject-empty{grid-column:1/-1;padding:48px;text-align:center}
 .planning-subject-empty h2{margin:0 0 7px}
 .planning-subject-empty p{margin:0;color:var(--muted)}
-.planning-pending-weeks{margin-bottom:20px}.planning-pending-weeks .panel-heading{display:flex;align-items:center;justify-content:space-between}.planning-pending-total{padding:6px 10px;border-radius:999px;background:#e8eef8;color:var(--brand);font-size:11px;font-weight:800}.planning-week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:18px}.planning-week-grid a{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f8f9fc;color:var(--text)}.planning-week-grid a:hover{border-color:var(--brand);background:#fff}.planning-week-grid span{color:var(--brand);font-size:10px;font-weight:800;text-transform:uppercase}.planning-week-grid strong{font-size:13px}.planning-week-grid small{color:var(--muted)}.planning-week-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
+.planning-pending-weeks{margin-bottom:20px}.planning-pending-weeks .panel-heading{display:flex;align-items:center;justify-content:space-between}.planning-pending-total{padding:6px 10px;border-radius:999px;background:#e8eef8;color:var(--brand);font-size:11px;font-weight:800}.planning-trimester-list{display:grid;gap:12px;margin-top:18px}.planning-trimester-group{overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#fff}.planning-trimester-group summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;list-style:none;background:#f4f7fb;color:var(--brand);font-weight:800}.planning-trimester-group summary::-webkit-details-marker{display:none}.planning-trimester-group summary::after{content:'+';display:grid;width:24px;height:24px;flex:0 0 24px;place-items:center;border-radius:6px;background:#e4eaf4;font-size:17px}.planning-trimester-group[open] summary::after{content:'−'}.planning-trimester-group summary small{margin-left:auto;color:var(--muted);font-size:10px;font-weight:600}.planning-week-grid{display:flex;gap:10px;overflow-x:auto;padding:14px;scrollbar-color:#b7c4d8 #eef2f8;scrollbar-width:thin}.planning-week-grid a{display:flex;flex:0 0 225px;flex-direction:column;gap:5px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f8f9fc;color:var(--text)}.planning-week-grid a:hover{border-color:var(--brand);background:#fff}.planning-week-grid span{color:var(--brand);font-size:10px;font-weight:800;text-transform:uppercase}.planning-week-grid strong{font-size:13px}.planning-week-grid small{color:var(--muted)}.planning-week-empty{padding:24px;text-align:center;color:var(--muted)}
 .planning-status{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;white-space:nowrap;background:#eef2f8;color:#52627c}
 .planning-status-en_revision{background:#e8eef8;color:#17366b}
 .planning-status-revisada{background:#eaf0fc;color:#355c99}
@@ -25,10 +23,17 @@
 .planning-section-heading p{font-size:12px;color:var(--muted);margin:0}
 .planning-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}
 .planning-wide{grid-column:1/-1}
-.planning-fixed{min-height:43px;margin:0;padding:11px 12px;background:#f5f7fb;border:1px solid var(--line);border-radius:6px}
-.planning-fixed strong,.planning-fixed span{display:block}
-.planning-fixed span{margin-top:3px;color:var(--muted);font-size:11px}
 .planning-schedule-hint{display:block;margin-top:7px;color:var(--brand);font-size:11px}
+.planning-form-heading{align-items:stretch}
+.planning-page-context{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;flex:1;padding:20px 22px;border:1px solid #cbd7e8;border-left:4px solid var(--brand);border-radius:12px;background:linear-gradient(135deg,#fff,#f1f5fa)}
+.planning-page-subject .eyebrow{margin:0 0 5px;color:var(--accent);font-size:9px;font-weight:800;letter-spacing:1.2px}
+.planning-page-subject h1{margin:0;color:var(--brand);font-size:27px}
+.planning-page-subject>p:last-child{margin:5px 0 0;color:var(--muted);font-size:12px;font-weight:600}
+.planning-page-week{display:grid;grid-template-columns:auto auto;align-items:center;gap:3px 8px;text-align:right}
+.planning-page-week strong{color:var(--brand);font-size:14px}
+.planning-page-week span{padding-left:8px;border-left:1px solid #bdc9dc;color:#4f617d;font-size:12px;font-weight:700}
+.planning-page-week time{grid-column:1/-1;color:var(--muted);font-size:12px;font-weight:600}
+.planning-page-context .planning-page-schedule{grid-column:1/-1;margin:0;padding-top:13px;border-top:1px solid #d6dfec;color:#40546f;font-size:12px;font-weight:700}
 .planning-textarea{margin-bottom:18px}
 .planning-textarea:last-child{margin-bottom:0}
 .planning-textarea textarea{min-height:90px}
@@ -65,7 +70,6 @@
 .planning-actions h2{font-size:16px;margin:0 0 8px}
 .planning-actions p{font-size:12px;color:var(--muted);margin:0 0 15px}
 .planning-actions .field{margin-bottom:16px}
-.planning-calculated-value{display:flex;align-items:center;min-height:42px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:7px;background:#f1f4f9;color:var(--brand);font-weight:700}
 .planning-period-card{overflow:hidden;margin-top:18px;border:1px solid #ced8e8;border-radius:12px;background:#fff}
 .planning-period-card>header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;background:#eef2f8;border-bottom:1px solid #dbe2ed}
 .planning-period-card>header>div{display:flex;align-items:center;gap:12px}
@@ -81,7 +85,16 @@
 .planning-strategies legend{padding:0 8px;color:var(--brand);font-weight:800;font-size:13px}
 .planning-strategies>p{grid-column:1/-1;margin:0;color:var(--muted);font-size:12px}
 .planning-strategy-topic{grid-column:1/-1}
+.planning-erca-phase{display:grid;gap:12px;padding:15px;border:1px solid #d8e1ee;border-radius:9px;background:#fff}
+.planning-erca-phase .planning-textarea{margin:0}
+.planning-dua-field{padding-top:12px;border-top:1px solid #e0e6ef}
+.planning-dua-field label{color:var(--accent);font-weight:800}
+.field.planning-dua-field textarea{min-height:78px;background:#fffdf8;border-color:#e9d8b6}
 .planning-period-full{grid-column:1/-1}
+.planning-evaluation-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0;padding:18px;border:1px solid #cfd9e8;border-radius:10px;background:#f8fafd}
+.planning-evaluation-fields legend{padding:0 8px;color:var(--brand);font-size:13px;font-weight:800}
+.planning-evaluation-fields>p{grid-column:1/-1;margin:0;color:var(--muted);font-size:12px}
+.planning-evaluation-fields .planning-textarea{margin:0}
 .planning-period-empty{text-align:center;padding:28px;border:1px dashed #aebdd3;border-radius:10px;background:#f8f9fc;color:var(--muted)}
 .planning-period-empty strong{color:var(--brand)}
 .planning-period-empty p{margin:6px 0 0}
@@ -100,7 +113,15 @@
 .planning-methodology-steps>div>span{display:grid;place-items:center;align-self:start;width:28px;height:28px;border-radius:7px;background:#e3e9f3;color:var(--brand);font-size:10px;font-weight:800}
 .planning-methodology-steps h5{margin:0 0 4px;color:#354968;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 .planning-methodology-steps p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
-@media(max-width:700px){.planning-filters,.planning-fields,.planning-details,.planning-content-grid,.planning-signatures,.planning-period-fields,.planning-strategies{grid-template-columns:1fr}.planning-filters .primary-button{width:100%}.planning-document{padding:20px}.planning-document-header{align-items:flex-start;flex-wrap:wrap}.planning-document-header h2{font-size:20px}.planning-toolbar-actions{width:100%}.planning-content-grid .planning-text-block:nth-child(n+4){grid-column:auto}.planning-subject-actions{align-items:stretch;flex-direction:column}.planning-subject-card{min-height:0}.planning-period-card>header,.planning-period-document>header{align-items:flex-start;flex-direction:column}.planning-strategies,.planning-strategies>p,.planning-strategy-topic,.planning-period-full{grid-column:auto}}
+.planning-methodology-dua{margin-top:10px;padding:10px 12px;border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:#fff9ed}
+.planning-methodology-dua strong{display:block;margin-bottom:3px;color:#9a6411;font-size:10px;letter-spacing:.5px}
+.planning-evaluation-block{grid-column:1/-1;padding:16px;border:1px solid #bdcadf;border-radius:9px;background:#f8fafd}
+.planning-evaluation-block>h4{margin:0 0 12px;color:var(--brand);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+.planning-evaluation-block>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.planning-evaluation-block article{padding:12px 14px;border:1px solid #dbe2ed;border-radius:7px;background:#fff}
+.planning-evaluation-block article strong{display:block;margin-bottom:5px;color:#52627c;font-size:10px;text-transform:uppercase;letter-spacing:.6px}
+.planning-evaluation-block article p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
+@media(max-width:700px){.planning-filters,.planning-fields,.planning-details,.planning-content-grid,.planning-signatures,.planning-period-fields,.planning-strategies,.planning-page-context,.planning-evaluation-fields,.planning-evaluation-block>div{grid-template-columns:1fr}.planning-filters .primary-button{width:100%}.planning-document{padding:20px}.planning-document-header{align-items:flex-start;flex-wrap:wrap}.planning-document-header h2{font-size:20px}.planning-toolbar-actions{width:100%}.planning-content-grid .planning-text-block:nth-child(n+4){grid-column:auto}.planning-subject-actions{align-items:stretch;flex-direction:column}.planning-subject-card{min-height:0}.planning-period-card>header,.planning-period-document>header{align-items:flex-start;flex-direction:column}.planning-strategies,.planning-strategies>p,.planning-strategy-topic,.planning-period-full,.planning-page-context .planning-page-schedule,.planning-evaluation-fields>p{grid-column:auto}.planning-page-week{text-align:left}.planning-page-week time{grid-column:1/-1}}
 @media print{
     @page{size:A4 portrait;margin:13mm}
     body{background:white;color:#243047}

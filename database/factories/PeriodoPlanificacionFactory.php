@@ -32,10 +32,15 @@ class PeriodoPlanificacionFactory extends Factory
             'recursos' => 'Recursos didácticos',
             'tema' => 'Tema de la clase',
             'experiencia' => 'Activación de conocimientos previos',
+            'dua_experiencia' => 'Ofrecer distintas formas de participación y motivación',
             'reflexion' => 'Preguntas para analizar la experiencia',
+            'dua_reflexion' => 'Facilitar distintas formas de expresar las ideas',
             'conceptualizacion' => 'Construcción de los nuevos conceptos',
+            'dua_conceptualizacion' => 'Presentar la información en distintos formatos',
             'aplicacion' => 'Aplicación de lo aprendido',
-            'orientaciones_evaluacion' => 'Observación directa y lista de cotejo',
+            'dua_aplicacion' => 'Permitir distintas formas de demostrar el aprendizaje',
+            'tecnica_evaluacion' => 'Observación directa',
+            'instrumento_evaluacion' => 'Lista de cotejo',
         ];
     }
 }

@@ -1,4 +1,9 @@
-@props(['title' => 'Panel principal'])
+@props([
+    'title' => 'Panel principal',
+    'breadcrumbTitle' => null,
+    'breadcrumbUrl' => null,
+    'breadcrumbs' => null,
+])
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -37,7 +42,24 @@
 <x-barra-lateral />        <button class="sidebar-backdrop" type="button" aria-label="Cerrar menú" hidden></button>
         <div class="main-area">
             <header class="topbar">
-                <div class="breadcrumb"><button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar" hidden>☰</button><span>Mi espacio</span><span class="separator">/</span><strong>{{ $title }}</strong></div>
+                @php
+                    $elementosRuta = $breadcrumbs ?? [
+                        ['label' => $breadcrumbTitle ?? $title, 'url' => $breadcrumbUrl],
+                    ];
+                @endphp
+                <nav class="breadcrumb" aria-label="Ruta de navegación">
+                    <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false"
+                        aria-controls="sidebar" hidden>☰</button>
+                    <a href="{{ route('dashboard') }}">Mi espacio</a>
+                    @foreach ($elementosRuta as $elementoRuta)
+                        <span class="separator" aria-hidden="true">/</span>
+                        @if ($elementoRuta['url'] ?? null)
+                            <a href="{{ $elementoRuta['url'] }}">{{ $elementoRuta['label'] }}</a>
+                        @else
+                            <strong aria-current="page">{{ $elementoRuta['label'] }}</strong>
+                        @endif
+                    @endforeach
+                </nav>
                 <div class="topbar-actions">
                     <div class="account"><span class="avatar">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span><span class="account-text"><strong>{{ auth()->user()->name }}</strong><small>{{ $rolCuenta }}</small></span></div>
                     <form method="POST" action="{{ route('logout') }}">@csrf<button class="logout" type="submit"><svg aria-hidden="true"><use href="#i-exit"/></svg>Cerrar sesión</button></form>

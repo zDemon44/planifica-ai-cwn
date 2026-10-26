@@ -114,9 +114,18 @@ class PlanificacionController extends Controller
         abort_if($asignacionId && ! $asignacionSeleccionada, 404);
 
         $semanaSeleccionada = null;
-        if (! $planificacion->exists && $asignacionSeleccionada && $inicioSemana) {
-            $semanaSeleccionada = $this->calendario->semanas($asignacionSeleccionada)->firstWhere('inicio', $inicioSemana);
-            abort_unless($semanaSeleccionada, 404);
+        if (! $planificacion->exists && $asignacionSeleccionada) {
+            $semanas = $this->calendario->semanas($asignacionSeleccionada);
+            if ($inicioSemana) {
+                $semanaSeleccionada = $semanas->firstWhere('inicio', $inicioSemana);
+                abort_unless($semanaSeleccionada, 404);
+            } else {
+                $fechasRegistradas = $asignacionSeleccionada->planificaciones()
+                    ->pluck('fecha_inicio')
+                    ->map(fn ($fecha) => Carbon::parse($fecha)->format('Y-m-d'));
+                $semanaSeleccionada = $semanas
+                    ->first(fn (array $semana): bool => ! $fechasRegistradas->contains($semana['inicio']));
+            }
         }
 
         $bloquesPlanificacion = $planificacion->exists
@@ -126,8 +135,9 @@ class PlanificacionController extends Controller
                 ...$periodo->only([
                     'destreza_curricular_id', 'indicador_evaluacion_id',
                     'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
-                    'tema', 'experiencia', 'reflexion', 'conceptualizacion', 'aplicacion',
-                    'orientaciones_evaluacion',
+                    'tema', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
+                    'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
+                    'orientaciones_evaluacion', 'tecnica_evaluacion', 'instrumento_evaluacion',
                 ]),
             ])
             : ($semanaSeleccionada['bloques'] ?? collect($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['bloques'] : []));
@@ -226,8 +236,9 @@ class PlanificacionController extends Controller
             foreach ($registro->periodos()->get() as $indice => $periodo) {
                 foreach ([
                     'destreza_curricular_id', 'indicador_evaluacion_id', 'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
-                    'tema', 'experiencia', 'reflexion', 'conceptualizacion', 'aplicacion',
-                    'orientaciones_evaluacion',
+                    'tema', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
+                    'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
+                    'tecnica_evaluacion', 'instrumento_evaluacion',
                 ] as $campo) {
                     if (blank($periodo->{$campo})) {
                         throw ValidationException::withMessages(["periodos.$indice.$campo" => 'Completa este campo antes de enviar la planificación a revisión.']);

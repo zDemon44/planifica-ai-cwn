@@ -32,7 +32,18 @@ class PlanificacionesTest extends TestCase
         $this->get(route('planificaciones.show', $planificacion))
             ->assertSee('Planificación microcurricular')
             ->assertSee('Adaptaciones curriculares')
-            ->assertSeeInOrder(['Orientaciones metodológicas para la enseñanza aprendizaje', 'Tema', 'Experiencia', 'Reflexión', 'Conceptualización', 'Aplicación']);
+            ->assertSeeInOrder(['Orientaciones metodológicas para la enseñanza aprendizaje', 'Tema', 'Experiencia', 'DUA:', 'Reflexión', 'DUA:', 'Conceptualización', 'DUA:', 'Aplicación', 'DUA:'])
+            ->assertSee('Participación mediante experiencias cercanas')
+            ->assertSeeInOrder(['Orientaciones para la evaluación', 'Técnica', 'Observación directa', 'Instrumento', 'Lista de cotejo']);
+        $this->assertDatabaseHas('periodos_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'dua_experiencia' => 'Participación mediante experiencias cercanas',
+            'dua_reflexion' => 'Expresión oral, escrita o gráfica',
+            'dua_conceptualizacion' => 'Información presentada en distintos formatos',
+            'dua_aplicacion' => 'Opciones para demostrar el aprendizaje',
+            'tecnica_evaluacion' => 'Observación directa',
+            'instrumento_evaluacion' => 'Lista de cotejo',
+        ]);
         $this->post(route('planificaciones.submit', $planificacion), ['version' => 1])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('planificaciones', ['id' => $planificacion->id, 'estado' => 'en_revision', 'version' => 2]);
         $this->get(route('planificaciones.edit', $planificacion))->assertForbidden();
@@ -112,7 +123,7 @@ class PlanificacionesTest extends TestCase
         $portada->assertOk()
             ->assertSee($matematicas->materia->nombre)
             ->assertSee($lengua->materia->nombre)
-            ->assertSee('Ver planificaciones')
+            ->assertSee('Gestionar planificaciones')
             ->assertSee(route('planificaciones.index', ['asignacion_id' => $matematicas->id]), false);
 
         $listado = $this->get(route('planificaciones.index', ['asignacion_id' => $matematicas->id]));
@@ -120,7 +131,8 @@ class PlanificacionesTest extends TestCase
         $listado->assertOk()
             ->assertSee("Semana {$planMatematicas->numero_semana}")
             ->assertDontSee("Semana {$planLengua->numero_semana}")
-            ->assertSee(route('planificaciones.create', ['asignacion_id' => $matematicas->id]), false);
+            ->assertDontSee('<label for="estado">', false)
+            ->assertDontSee('+ Nueva planificación');
     }
 
     public function test_nueva_planificacion_desde_materia_lleva_asignacion_fija_y_protege_ajenas(): void
@@ -155,6 +167,11 @@ class PlanificacionesTest extends TestCase
         $formulario = $this->actingAs($docente)->get(route('planificaciones.create', ['asignacion_id' => $asignacion->id]));
 
         $formulario->assertOk()
+            ->assertSee('3 períodos de 45 min distribuidos en 2 bloques.')
+            ->assertDontSee('Número de semana *')
+            ->assertDontSee('Períodos semanales')
+            ->assertDontSee('Fecha de inicio *')
+            ->assertDontSee('Fecha de finalización *')
             ->assertSee('Períodos 1 y 2')
             ->assertSee('(90 min)')
             ->assertSee('Período 3')
@@ -293,10 +310,15 @@ class PlanificacionesTest extends TestCase
                 'recursos' => 'Recursos didácticos',
                 'tema' => 'Tema de la clase',
                 'experiencia' => 'Experiencia de aprendizaje',
+                'dua_experiencia' => 'Participación mediante experiencias cercanas',
                 'reflexion' => 'Reflexión sobre la experiencia',
+                'dua_reflexion' => 'Expresión oral, escrita o gráfica',
                 'conceptualizacion' => 'Conceptualización del aprendizaje',
+                'dua_conceptualizacion' => 'Información presentada en distintos formatos',
                 'aplicacion' => 'Aplicación de lo aprendido',
-                'orientaciones_evaluacion' => 'Observación directa y lista de cotejo',
+                'dua_aplicacion' => 'Opciones para demostrar el aprendizaje',
+                'tecnica_evaluacion' => 'Observación directa',
+                'instrumento_evaluacion' => 'Lista de cotejo',
             ]),
         ], $cambios);
     }

@@ -1,21 +1,73 @@
-<x-layouts.aplicacion :title="$planificacion->exists ? 'Editar planificación' : 'Nueva planificación'">
+@php
+    $rutaListado = route(
+        'planificaciones.index',
+        $asignacionSeleccionada ? ['asignacion_id' => $asignacionSeleccionada->id] : [],
+    );
+    $numeroSemanaMiga = old('numero_semana', $semanaSeleccionada['numero'] ?? $planificacion->numero_semana);
+    $migasNavegacion = [
+        ['label' => 'Planificaciones semanales', 'url' => route('planificaciones.index')],
+    ];
+
+    if ($asignacionSeleccionada) {
+        $migasNavegacion[] = [
+            'label' => $asignacionSeleccionada->materia->nombre,
+            'url' => $rutaListado,
+        ];
+        $migasNavegacion[] = [
+            'label' => $numeroSemanaMiga ? "Semana {$numeroSemanaMiga}" : 'Planificación',
+            'url' => null,
+        ];
+    } else {
+        $migasNavegacion[] = ['label' => 'Nueva planificación', 'url' => null];
+    }
+@endphp
+<x-layouts.aplicacion :title="$planificacion->exists ? 'Editar planificación' : 'Nueva planificación'"
+    :breadcrumbs="$migasNavegacion">
     @php
-        $rutaListado = route(
-            'planificaciones.index',
-            $asignacionSeleccionada ? ['asignacion_id' => $asignacionSeleccionada->id] : [],
-        );
         $cantidadPeriodos = $bloquesPlanificacion->sum(
             fn($bloque) => $bloque['numero_fin'] - $bloque['numero_inicio'] + 1,
         );
+        $trimestreInformativo = old('trimestre', $semanaSeleccionada['trimestre'] ?? $planificacion->trimestre);
+        $numeroSemanaInformativo = old('numero_semana', $semanaSeleccionada['numero'] ?? $planificacion->numero_semana);
+        $fechaInicioInformativa = old('fecha_inicio', $semanaSeleccionada['inicio'] ?? $planificacion->fecha_inicio?->format('Y-m-d'));
+        $fechaFinInformativa = old('fecha_fin', $semanaSeleccionada['fin'] ?? $planificacion->fecha_fin?->format('Y-m-d'));
+        $cantidadBloques = $bloquesPlanificacion->count();
+        $resumenHorario = $cantidadPeriodos
+            ? sprintf(
+                '%d período%s de 45 min distribuido%s en %d bloque%s.',
+                $cantidadPeriodos,
+                $cantidadPeriodos === 1 ? '' : 's',
+                $cantidadPeriodos === 1 ? '' : 's',
+                $cantidadBloques,
+                $cantidadBloques === 1 ? '' : 's',
+            )
+            : 'Esta materia todavía no tiene clases configuradas en el horario.';
     @endphp
-    <div class="page-heading">
-        <div>
-            <p class="eyebrow">PLANIFICACIÓN MICROCURRICULAR</p>
-            <h1>{{ $planificacion->exists ? 'Editar planificación' : 'Nueva planificación' }}</h1>
-            <p>Los bloques se generan desde el horario semanal de la materia.</p>
-        </div>
-        <a class="secondary-button"
-            href="{{ $planificacion->exists ? route('planificaciones.show', $planificacion) : $rutaListado }}">Volver</a>
+    <div class="page-heading planning-form-heading">
+        @if ($asignacionSeleccionada)
+            <div class="planning-page-context">
+                <div class="planning-page-subject">
+                    <p class="eyebrow">ASIGNATURA Y CURSO</p>
+                    <h1>{{ $asignacionSeleccionada->materia->nombre }}</h1>
+                    <p>{{ $asignacionSeleccionada->seccion->etiqueta }}</p>
+                </div>
+                @if ($numeroSemanaInformativo && $trimestreInformativo && $fechaInicioInformativa && $fechaFinInformativa)
+                    <div class="planning-page-week">
+                        <strong>Semana {{ $numeroSemanaInformativo }}</strong>
+                        <span>Trimestre {{ $trimestreInformativo }}</span>
+                        <time>{{ Carbon\Carbon::parse($fechaInicioInformativa)->format('d/m/Y') }} –
+                            {{ Carbon\Carbon::parse($fechaFinInformativa)->format('d/m/Y') }}</time>
+                    </div>
+                @endif
+                <p class="planning-page-schedule">{{ $resumenHorario }}</p>
+            </div>
+        @else
+            <div>
+                <p class="eyebrow">PLANIFICACIÓN MICROCURRICULAR</p>
+                <h1>{{ $planificacion->exists ? 'Editar planificación' : 'Nueva planificación' }}</h1>
+                <p>Selecciona una materia para preparar la semana.</p>
+            </div>
+        @endif
     </div>
     @if ($errors->any())
         <div class="delete-confirmation" role="alert"><strong>Revisa los campos indicados.</strong>
@@ -41,27 +93,18 @@
             <div class="planning-section-heading"><span>01</span>
                 <div>
                     <h2>Datos informativos</h2>
-                    <p>Información de la semana y asignatura</p>
+                    <p>Completa los datos que dependen del docente.</p>
                 </div>
             </div>
             <div class="planning-fields">
-                <div class="field planning-wide"><label for="asignacion_id">Asignatura · curso · período *</label>
-                    @if ($asignacionSeleccionada)
-                        <p class="planning-fixed">
-                            <strong>{{ $asignacionSeleccionada->materia->nombre }}</strong><span>{{ $asignacionSeleccionada->seccion->etiqueta }}</span>
-                        </p>
-                        <input type="hidden" name="asignacion_id" value="{{ $asignacionSeleccionada->id }}">
-                        <small class="planning-schedule-hint">
-                            @if ($cantidadPeriodos)
-                                {{ $cantidadPeriodos }} período{{ $cantidadPeriodos === 1 ? '' : 's' }} de 45 min
-                                distribuido{{ $cantidadPeriodos === 1 ? '' : 's' }} en
-                                {{ $bloquesPlanificacion->count() }}
-                                bloque{{ $bloquesPlanificacion->count() === 1 ? '' : 's' }}.
-                            @else
-                                Esta materia todavía no tiene clases configuradas en el horario.
-                            @endif
-                        </small>
-                    @else
+                @if ($asignacionSeleccionada)
+                    <input type="hidden" name="asignacion_id" value="{{ $asignacionSeleccionada->id }}">
+                    <input type="hidden" name="trimestre" value="{{ $trimestreInformativo }}">
+                    <input type="hidden" name="numero_semana" value="{{ $numeroSemanaInformativo }}">
+                    <input type="hidden" name="fecha_inicio" value="{{ $fechaInicioInformativa }}">
+                    <input type="hidden" name="fecha_fin" value="{{ $fechaFinInformativa }}">
+                @else
+                    <div class="field planning-wide"><label for="asignacion_id">Asignatura · curso · período *</label>
                         <select id="asignacion_id" required>
                             <option value="">Selecciona una asignación</option>
                             @foreach ($asignaciones as $asignacion)
@@ -72,23 +115,11 @@
                         </select>
                         <small class="planning-schedule-hint">Al seleccionar una materia cargaremos sus bloques
                             semanales.</small>
-                    @endif
-                    @error('asignacion_id')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
-                <div class="field"><label for="trimestre">Trimestre *</label><select id="trimestre" name="trimestre"
-                        required @disabled($semanaSeleccionada)>
-                        @for ($numero = 1; $numero <= 3; $numero++)
-                            <option value="{{ $numero }}" @selected(old('trimestre', $semanaSeleccionada['trimestre'] ?? $planificacion->trimestre) == $numero)>{{ $numero }}
-                            </option>
-                        @endfor
-                    </select>
-                    @if($semanaSeleccionada)<input type="hidden" name="trimestre" value="{{ $semanaSeleccionada['trimestre'] }}">@endif
-                    @error('trimestre')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
+                        @error('asignacion_id')
+                            <small class="field-error">{{ $message }}</small>
+                        @enderror
+                    </div>
+                @endif
                 <div class="field"><label for="titulo_unidad">Título de la unidad</label><input id="titulo_unidad"
                         name="titulo_unidad" value="{{ old('titulo_unidad', $planificacion->titulo_unidad) }}"
                         maxlength="255" placeholder="Escribe el título de la unidad">
@@ -102,30 +133,6 @@
                         <option value="vespertina" @selected(old('jornada', $jornadaSugerida) === 'vespertina')>Vespertina</option>
                     </select>
                     @error('jornada')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
-                <div class="field"><label for="numero_semana">Número de semana *</label><input id="numero_semana"
-                        name="numero_semana" type="number" min="1" max="53"
-                        value="{{ old('numero_semana', $semanaSeleccionada['numero'] ?? $planificacion->numero_semana) }}" required @readonly($semanaSeleccionada)>
-                    @error('numero_semana')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
-                <div class="field"><label>Períodos semanales</label>
-                    <p class="planning-calculated-value">{{ $cantidadPeriodos ?: 'Pendiente del horario' }}</p>
-                </div>
-                <div class="field"><label for="fecha_inicio">Fecha de inicio *</label><input id="fecha_inicio"
-                        name="fecha_inicio" type="date"
-                        value="{{ old('fecha_inicio', $semanaSeleccionada['inicio'] ?? $planificacion->fecha_inicio?->format('Y-m-d')) }}" required @readonly($semanaSeleccionada)>
-                    @error('fecha_inicio')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
-                <div class="field"><label for="fecha_fin">Fecha de finalización *</label><input id="fecha_fin"
-                        name="fecha_fin" type="date"
-                        value="{{ old('fecha_fin', $semanaSeleccionada['fin'] ?? $planificacion->fecha_fin?->format('Y-m-d')) }}" required @readonly($semanaSeleccionada)>
-                    @error('fecha_fin')
                         <small class="field-error">{{ $message }}</small>
                     @enderror
                 </div>
@@ -249,29 +256,58 @@
                             <legend>Orientaciones metodológicas para la enseñanza aprendizaje</legend>
                             <p>Organiza el desarrollo del tema con las fases metodológicas del formato institucional.
                             </p>
-                            @foreach (['tema' => 'Tema', 'experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
-                                <div
-                                    class="field planning-textarea {{ $campo === 'tema' ? 'planning-strategy-topic' : '' }}">
-                                    <label
-                                        for="periodos_{{ $indice }}_{{ $campo }}">{{ $etiqueta }}</label>
-                                    <textarea id="periodos_{{ $indice }}_{{ $campo }}"
-                                        name="periodos[{{ $indice }}][{{ $campo }}]" rows="{{ $campo === 'tema' ? 2 : 4 }}">{{ old("periodos.$indice.$campo", $bloque[$campo] ?? '') }}</textarea>
-                                    @error("periodos.$indice.$campo")
-                                        <small class="field-error">{{ $message }}</small>
-                                    @enderror
-                                </div>
+                            <div class="field planning-textarea planning-strategy-topic">
+                                <label for="periodos_{{ $indice }}_tema">Tema</label>
+                                <textarea id="periodos_{{ $indice }}_tema" name="periodos[{{ $indice }}][tema]" rows="2">{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
+                                @error("periodos.$indice.tema")
+                                    <small class="field-error">{{ $message }}</small>
+                                @enderror
+                            </div>
+                            @foreach (['experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
+                                @php($campoDua = "dua_{$campo}")
+                                <section class="planning-erca-phase">
+                                    <div class="field planning-textarea">
+                                        <label for="periodos_{{ $indice }}_{{ $campo }}">{{ $etiqueta }}</label>
+                                        <textarea id="periodos_{{ $indice }}_{{ $campo }}"
+                                            name="periodos[{{ $indice }}][{{ $campo }}]" rows="4">{{ old("periodos.$indice.$campo", $bloque[$campo] ?? '') }}</textarea>
+                                        @error("periodos.$indice.$campo")
+                                            <small class="field-error">{{ $message }}</small>
+                                        @enderror
+                                    </div>
+                                    <div class="field planning-textarea planning-dua-field">
+                                        <label for="periodos_{{ $indice }}_{{ $campoDua }}">DUA:</label>
+                                        <textarea id="periodos_{{ $indice }}_{{ $campoDua }}"
+                                            name="periodos[{{ $indice }}][{{ $campoDua }}]" rows="3"
+                                            placeholder="Principio DUA aplicado en {{ Str::lower($etiqueta) }}">{{ old("periodos.$indice.$campoDua", $bloque[$campoDua] ?? '') }}</textarea>
+                                        @error("periodos.$indice.$campoDua")
+                                            <small class="field-error">{{ $message }}</small>
+                                        @enderror
+                                    </div>
+                                </section>
                             @endforeach
                         </fieldset>
-                        <div class="field planning-textarea planning-period-full"><label
-                                for="periodos_{{ $indice }}_orientaciones_evaluacion">Orientaciones para la
-                                evaluación</label>
-                            <textarea id="periodos_{{ $indice }}_orientaciones_evaluacion"
-                                name="periodos[{{ $indice }}][orientaciones_evaluacion]" rows="4"
-                                placeholder="Incluye actividades, técnicas e instrumentos de evaluación">{{ old("periodos.$indice.orientaciones_evaluacion", $bloque['orientaciones_evaluacion'] ?? '') }}</textarea>
-                            @error("periodos.$indice.orientaciones_evaluacion")
-                                <small class="field-error">{{ $message }}</small>
-                            @enderror
-                        </div>
+                        <fieldset class="planning-evaluation-fields">
+                            <legend>Orientaciones para la evaluación</legend>
+                            <p>Registra la técnica aplicada y el instrumento que permitirá recoger la evidencia.</p>
+                            <div class="field planning-textarea">
+                                <label for="periodos_{{ $indice }}_tecnica_evaluacion">Técnica</label>
+                                <textarea id="periodos_{{ $indice }}_tecnica_evaluacion"
+                                    name="periodos[{{ $indice }}][tecnica_evaluacion]" rows="3"
+                                    placeholder="Ej.: observación directa, resolución de problemas">{{ old("periodos.$indice.tecnica_evaluacion", $bloque['tecnica_evaluacion'] ?? '') }}</textarea>
+                                @error("periodos.$indice.tecnica_evaluacion")
+                                    <small class="field-error">{{ $message }}</small>
+                                @enderror
+                            </div>
+                            <div class="field planning-textarea">
+                                <label for="periodos_{{ $indice }}_instrumento_evaluacion">Instrumento</label>
+                                <textarea id="periodos_{{ $indice }}_instrumento_evaluacion"
+                                    name="periodos[{{ $indice }}][instrumento_evaluacion]" rows="3"
+                                    placeholder="Ej.: lista de cotejo, rúbrica, cuestionario">{{ old("periodos.$indice.instrumento_evaluacion", $bloque['instrumento_evaluacion'] ?? '') }}</textarea>
+                                @error("periodos.$indice.instrumento_evaluacion")
+                                    <small class="field-error">{{ $message }}</small>
+                                @enderror
+                            </div>
+                        </fieldset>
                     </div>
                 </article>
             @empty

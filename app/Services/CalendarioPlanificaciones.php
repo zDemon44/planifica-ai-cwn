@@ -24,7 +24,7 @@ class CalendarioPlanificaciones
             $bloques = $this->construirPeriodos->handle($asignacion, $cursor);
             if ($bloques->isNotEmpty()) {
                 $inicio = $cursor->copy()->max($periodo->fecha_inicio);
-                $fin = $cursor->copy()->endOfWeek(CarbonInterface::SUNDAY)->min($periodo->fecha_fin);
+                $fin = $cursor->copy()->addDays(4)->min($periodo->fecha_fin);
                 $semanas->push([
                     'numero' => $semanas->count() + 1,
                     'inicio' => $inicio->format('Y-m-d'),

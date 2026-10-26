@@ -118,6 +118,7 @@ class CronogramaTest extends TestCase
         $semana = app(CalendarioPlanificaciones::class)->semanas($asignacion->fresh())
             ->firstWhere('inicio', '2026-06-01');
         $this->assertNotNull($semana);
+        $this->assertSame('2026-06-05', $semana['fin']);
         $this->assertCount(1, $semana['bloques']);
         $this->assertSame('2026-06-03', $semana['bloques']->first()['fecha_clase']);
     }

@@ -1,4 +1,15 @@
-<x-layouts.aplicacion title="Planificación semanal">
+@php
+    $asignacionPlanificacion = $planificacion->asignacion;
+    $migasNavegacion = [
+        ['label' => 'Planificaciones semanales', 'url' => route('planificaciones.index')],
+        [
+            'label' => $asignacionPlanificacion->materia->nombre,
+            'url' => route('planificaciones.index', ['asignacion_id' => $asignacionPlanificacion->id]),
+        ],
+        ['label' => "Semana {$planificacion->numero_semana}", 'url' => null],
+    ];
+@endphp
+<x-layouts.aplicacion title="Planificación semanal" :breadcrumbs="$migasNavegacion">
     @php
         $rolUsuario = auth()->user()->role;
         $esAdministracion = in_array($rolUsuario, ['SUPERADMIN', 'ADMIN'], true);
@@ -133,7 +144,6 @@
         'destrezas_criterios_desempeno' => 'Destrezas con criterios de desempeño (estándar)',
         'indicadores_evaluacion' => 'Indicadores de evaluación',
         'recursos' => 'Recursos',
-        'orientaciones_evaluacion' => 'Orientaciones para la evaluación',
     ] as $campo => $etiqueta)
                                 <div class="planning-text-block">
                                     <h4>{{ $etiqueta }}
@@ -154,9 +164,29 @@
                                             <div>
                                                 <h5>{{ $etiqueta }}</h5>
                                                 <p>{{ $periodo->{$campo} ?: '—' }}</p>
+                                                @if ($campo !== 'tema')
+                                                    @php($campoDua = "dua_{$campo}")
+                                                    <div class="planning-methodology-dua">
+                                                        <strong>DUA:</strong>
+                                                        <p>{{ $periodo->{$campoDua} ?: '—' }}</p>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     @endforeach
+                                </div>
+                            </section>
+                            <section class="planning-evaluation-block">
+                                <h4>Orientaciones para la evaluación</h4>
+                                <div>
+                                    <article>
+                                        <strong>Técnica</strong>
+                                        <p>{{ $periodo->tecnica_evaluacion ?: '—' }}</p>
+                                    </article>
+                                    <article>
+                                        <strong>Instrumento</strong>
+                                        <p>{{ $periodo->instrumento_evaluacion ?: '—' }}</p>
+                                    </article>
                                 </div>
                             </section>
                         </div>
