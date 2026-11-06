@@ -8,6 +8,7 @@ use App\Models\DestrezaCurricular;
 use App\Models\Docente;
 use App\Models\Horario;
 use App\Models\IndicadorEvaluacion;
+use App\Models\ObjetivoCurricular;
 use App\Models\Planificacion;
 use App\Models\Recreo;
 use App\Models\User;
@@ -29,6 +30,12 @@ class PlanificacionesTest extends TestCase
         $this->post(route('planificaciones.store'), $this->datos($asignacion))->assertSessionHasNoErrors();
         $planificacion = Planificacion::sole();
         $this->assertSame('borrador', $planificacion->estado);
+        $objetivo = ObjetivoCurricular::where('materia_id', $asignacion->materia_id)->sole();
+        $this->assertDatabaseHas('objetivo_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'objetivo_curricular_id' => $objetivo->id,
+        ]);
+        $this->assertStringContainsString($objetivo->codigo, $planificacion->objetivos_aprendizaje);
         $this->get(route('planificaciones.show', $planificacion))
             ->assertSee('Planificación microcurricular')
             ->assertSee('Adaptaciones curriculares')
@@ -107,6 +114,26 @@ class PlanificacionesTest extends TestCase
 
         $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
             ->assertSessionHasErrors('periodos.0.indicador_evaluacion_id');
+        $this->assertDatabaseCount('planificaciones', 0);
+    }
+
+    public function test_rechaza_objetivos_de_otra_materia(): void
+    {
+        $asignacion = Asignacion::factory()->create();
+        $otraAsignacion = Asignacion::factory()->create();
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $datos = $this->datos($asignacion);
+        $objetivoAjeno = ObjetivoCurricular::create([
+            'materia_id' => $otraAsignacion->materia_id,
+            'subnivel' => $asignacion->seccion->curso->subnivel,
+            'codigo' => 'O.AJENO.1.',
+            'descripcion' => 'Objetivo perteneciente a otra materia.',
+            'activo' => true,
+        ]);
+        $datos['objetivo_curricular_ids'] = [$objetivoAjeno->id];
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors('objetivo_curricular_ids');
         $this->assertDatabaseCount('planificaciones', 0);
     }
 
@@ -278,6 +305,17 @@ class PlanificacionesTest extends TestCase
             ['descripcion' => 'Indicadores de evaluación', 'grupo' => 1, 'activo' => true]
         );
         $destreza->indicadores()->syncWithoutDetaching($indicador);
+        $objetivo = ObjetivoCurricular::firstOrCreate(
+            [
+                'materia_id' => $asignacion->materia_id,
+                'subnivel' => $asignacion->seccion->curso->subnivel,
+                'codigo' => 'O.M.2.1.',
+            ],
+            [
+                'descripcion' => 'Explicar y construir patrones para desarrollar el pensamiento lógico matemático.',
+                'activo' => true,
+            ],
+        );
         if (! Horario::where('docente_id', $asignacion->docente_id)->where('seccion_id', $asignacion->seccion_id)->exists()) {
             $horario = Horario::factory()->create([
                 'docente_id' => $asignacion->docente_id,
@@ -303,7 +341,7 @@ class PlanificacionesTest extends TestCase
             'numero_semana' => 4,
             'fecha_inicio' => '2026-06-01',
             'fecha_fin' => '2026-06-05',
-            'objetivos_aprendizaje' => 'Objetivos de aprendizaje de la semana',
+            'objetivo_curricular_ids' => [$objetivo->id],
             'periodos' => array_fill(0, 3, [
                 'destreza_curricular_id' => $destreza->id,
                 'indicador_evaluacion_id' => $indicador->id,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ImportarCatalogoCurricularRequest;
 use App\Models\DestrezaCurricular;
 use App\Models\Materia;
+use App\Models\ObjetivoCurricular;
 use App\Services\ImportarCatalogoCurricularExcel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,11 +25,14 @@ class CatalogoCurricularController extends Controller
         $materias = Materia::where('estado', 'activo')->orderBy('nombre')->get();
         $materiaId = (int) ($filtros['materia_id'] ?? $materias->first()?->id);
         $grado = (int) ($filtros['grado'] ?? 4);
+        $subnivel = 'basica_elemental';
+        $objetivos = ObjetivoCurricular::where('materia_id', $materiaId)->where('subnivel', $subnivel)
+            ->where('activo', true)->orderBy('codigo')->get();
         $destrezas = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta->where('activo', true)->orderBy('codigo'), 'indicadores.competencias'])
             ->where('materia_id', $materiaId)->where('grado', $grado)->where('activo', true)
             ->orderBy('grupo')->orderBy('codigo')->get();
 
-        return view('CatalogoCurricular.index', compact('materias', 'materiaId', 'grado', 'destrezas'));
+        return view('CatalogoCurricular.index', compact('materias', 'materiaId', 'grado', 'objetivos', 'destrezas'));
     }
 
     public function importar(ImportarCatalogoCurricularRequest $request, ImportarCatalogoCurricularExcel $importador): RedirectResponse

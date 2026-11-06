@@ -146,13 +146,69 @@
                     <p>Información general de la semana</p>
                 </div>
             </div>
-            <div class="field planning-textarea"><label for="objetivos_aprendizaje">Objetivos de aprendizaje</label>
-                <textarea id="objetivos_aprendizaje" name="objetivos_aprendizaje" rows="6"
-                    placeholder="Registra los objetivos de aprendizaje correspondientes a la semana">{{ old('objetivos_aprendizaje', $planificacion->objetivos_aprendizaje) }}</textarea>
-                @error('objetivos_aprendizaje')
-                    <small class="field-error">{{ $message }}</small>
-                @enderror
-            </div>
+            @if ($asignacionSeleccionada && $objetivosCurriculares->isEmpty())
+                <p class="legacy-note">Todavía no hay objetivos curriculares registrados para
+                    {{ $asignacionSeleccionada->materia->nombre }} en este subnivel.</p>
+            @else
+                @php
+                    $filasObjetivos = $objetivosSeleccionados->isEmpty()
+                        ? collect([null])
+                        : $objetivosSeleccionados;
+                @endphp
+                <div class="planning-objectives">
+                    <div class="planning-objectives-heading">
+                        <div><strong>Objetivos de aprendizaje</strong><small>Selecciona uno o varios objetivos del
+                                catálogo curricular.</small></div>
+                        <button class="secondary-button" id="agregar-objetivo" type="button">+ Agregar otro</button>
+                    </div>
+                    <div id="filas-objetivos">
+                        @foreach ($filasObjetivos as $objetivoSeleccionado)
+                            <div class="planning-objective-row">
+                                <div class="field">
+                                    <select id="objetivo_curricular_{{ $loop->index }}"
+                                        name="objetivo_curricular_ids[]" aria-label="Objetivo de aprendizaje">
+                                        <option value="">Selecciona un objetivo</option>
+                                        @foreach ($objetivosCurriculares as $objetivo)
+                                            <option value="{{ $objetivo->id }}" @selected((int) $objetivoSeleccionado === $objetivo->id)
+                                                title="{{ $objetivo->codigo }} {{ $objetivo->descripcion }}">
+                                                {{ $objetivo->codigo }} {{ Str::limit($objetivo->descripcion, 145) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button class="planning-objective-remove" type="button"
+                                    aria-label="Quitar objetivo">×</button>
+                            </div>
+                        @endforeach
+                    </div>
+                    @if ($planificacion->exists && $planificacion->objetivos_aprendizaje && $objetivosSeleccionados->isEmpty())
+                        <p class="planning-objectives-legacy">Esta planificación conserva objetivos escritos
+                            anteriormente. Selecciona objetivos del catálogo para reemplazarlos.</p>
+                    @endif
+                    @error('objetivo_curricular_ids')
+                        <small class="field-error">{{ $message }}</small>
+                    @enderror
+                    @error('objetivo_curricular_ids.*')
+                        <small class="field-error">{{ $message }}</small>
+                    @enderror
+                </div>
+                <template id="plantilla-objetivo">
+                    <div class="planning-objective-row">
+                        <div class="field">
+                            <select name="objetivo_curricular_ids[]" aria-label="Objetivo de aprendizaje">
+                                <option value="">Selecciona un objetivo</option>
+                                @foreach ($objetivosCurriculares as $objetivo)
+                                    <option value="{{ $objetivo->id }}"
+                                        title="{{ $objetivo->codigo }} {{ $objetivo->descripcion }}">
+                                        {{ $objetivo->codigo }} {{ Str::limit($objetivo->descripcion, 145) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <button class="planning-objective-remove" type="button" aria-label="Quitar objetivo">×</button>
+                    </div>
+                </template>
+            @endif
         </section>
 
         <section class="panel">
@@ -350,6 +406,40 @@
             });
         </script>
     @endif
+    <script>
+        (() => {
+            const filas = document.getElementById('filas-objetivos');
+            const plantilla = document.getElementById('plantilla-objetivo');
+            const agregar = document.getElementById('agregar-objetivo');
+            if (!filas || !plantilla || !agregar) return;
+
+            const actualizar = () => {
+                const registros = [...filas.querySelectorAll('.planning-objective-row')];
+                const seleccionados = new Set(registros.map(fila => fila.querySelector('select').value).filter(Boolean));
+                registros.forEach(fila => {
+                    const select = fila.querySelector('select');
+                    fila.querySelector('.planning-objective-remove').hidden = registros.length === 1;
+                    [...select.options].forEach(opcion => {
+                        opcion.disabled = opcion.value !== select.value && seleccionados.has(opcion.value);
+                    });
+                });
+                agregar.disabled = registros.length >= {{ min(10, max(1, $objetivosCurriculares->count())) }};
+            };
+
+            agregar.addEventListener('click', () => {
+                filas.append(plantilla.content.cloneNode(true));
+                actualizar();
+            });
+            filas.addEventListener('click', event => {
+                const boton = event.target.closest('.planning-objective-remove');
+                if (!boton) return;
+                boton.closest('.planning-objective-row').remove();
+                actualizar();
+            });
+            filas.addEventListener('change', actualizar);
+            actualizar();
+        })();
+    </script>
     <script>
         (() => {
             const relacionados = @json($indicadoresPorDestreza);

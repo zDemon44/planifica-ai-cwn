@@ -35,7 +35,9 @@ class GuardarPlanificacionRequest extends FormRequest
             'fecha_inicio' => ['required', 'date_format:Y-m-d'],
             'fecha_fin' => ['required', 'date_format:Y-m-d', 'after_or_equal:fecha_inicio'],
             'numero_periodos' => ['prohibited'],
-            'objetivos_aprendizaje' => ['nullable', 'string', 'max:15000'],
+            'objetivo_curricular_ids' => ['nullable', 'array', 'max:10'],
+            'objetivo_curricular_ids.*' => ['nullable', 'integer', 'distinct', 'exists:objetivos_curriculares,id'],
+            'objetivos_aprendizaje' => ['prohibited'],
             'periodos' => ['required', 'array', 'min:1', 'max:40'],
             'periodos.*' => ['required', 'array'],
             'periodos.*.destreza_curricular_id' => ['nullable', 'integer', 'exists:destrezas_curriculares,id'],
@@ -93,7 +95,8 @@ class GuardarPlanificacionRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'objetivos_aprendizaje' => 'objetivos de aprendizaje',
+            'objetivo_curricular_ids' => 'objetivos de aprendizaje',
+            'objetivo_curricular_ids.*' => 'objetivo de aprendizaje',
             'periodos.*.destreza_curricular_id' => 'destreza con criterios de desempeño',
             'periodos.*.indicador_evaluacion_id' => 'indicador de evaluación',
             'periodos.*.recursos' => 'recursos',

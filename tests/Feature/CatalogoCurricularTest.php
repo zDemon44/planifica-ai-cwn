@@ -6,6 +6,7 @@ use App\Models\DestrezaCurricular;
 use App\Models\Docente;
 use App\Models\IndicadorEvaluacion;
 use App\Models\Materia;
+use App\Models\ObjetivoCurricular;
 use App\Models\User;
 use App\Services\ImportarCatalogoCurricularExcel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -67,5 +68,24 @@ class CatalogoCurricularTest extends TestCase
         $destreza = DestrezaCurricular::with('competencias')->where('materia_id', $materia->id)
             ->where('grado', 4)->where('codigo', 'M.2.1.24')->sole();
         $this->assertEqualsCanonicalizing(['CM', 'C', 'CS', 'EV', 'ES'], $destreza->competencias->pluck('codigo')->all());
+    }
+
+    public function test_admin_consulta_objetivos_compartidos_por_subnivel(): void
+    {
+        $materia = Materia::factory()->create(['nombre' => 'Matemática']);
+        ObjetivoCurricular::create([
+            'materia_id' => $materia->id,
+            'subnivel' => 'basica_elemental',
+            'codigo' => 'O.M.2.1.',
+            'descripcion' => 'Explicar y construir patrones de figuras y numéricos.',
+            'activo' => true,
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'ADMIN']))
+            ->get(route('catalogo-curricular.index', ['materia_id' => $materia->id, 'grado' => 4]))
+            ->assertOk()
+            ->assertSee('Objetivos de aprendizaje')
+            ->assertSee('O.M.2.1.')
+            ->assertSee('Se comparten entre los grados del subnivel Básica Elemental.');
     }
 }

@@ -37,6 +37,16 @@
 .planning-textarea{margin-bottom:18px}
 .planning-textarea:last-child{margin-bottom:0}
 .planning-textarea textarea{min-height:90px}
+.planning-objectives{padding:18px;border:1px solid #cfd9e8;border-radius:10px;background:#f8fafd}
+.planning-objectives-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+.planning-objectives-heading strong{display:block;color:var(--brand);font-size:13px}
+.planning-objectives-heading small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+.planning-objectives-heading .secondary-button{flex:none}
+#filas-objetivos{display:grid;gap:10px}
+.planning-objective-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:end;gap:8px}
+.planning-objective-remove{display:grid;width:38px;height:43px;place-items:center;border:1px solid #e0c7cd;border-radius:9px;background:#fff;color:#a22146;font-size:20px;line-height:1}
+.planning-objective-remove:hover{border-color:#a22146;background:#fff2f4}
+.planning-objectives-legacy{margin:12px 0 0;color:#8b702e;font-size:11px}
 .planning-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
 .planning-notice{margin-bottom:20px}
 .planning-feedback{border:1px solid #efd3a7;background:#fff9ed;border-radius:8px;padding:16px 20px;white-space:pre-wrap}
@@ -122,6 +132,7 @@
 .planning-evaluation-block article strong{display:block;margin-bottom:5px;color:#52627c;font-size:10px;text-transform:uppercase;letter-spacing:.6px}
 .planning-evaluation-block article p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
 @media(max-width:700px){.planning-filters,.planning-fields,.planning-details,.planning-content-grid,.planning-signatures,.planning-period-fields,.planning-strategies,.planning-page-context,.planning-evaluation-fields,.planning-evaluation-block>div{grid-template-columns:1fr}.planning-filters .primary-button{width:100%}.planning-document{padding:20px}.planning-document-header{align-items:flex-start;flex-wrap:wrap}.planning-document-header h2{font-size:20px}.planning-toolbar-actions{width:100%}.planning-content-grid .planning-text-block:nth-child(n+4){grid-column:auto}.planning-subject-actions{align-items:stretch;flex-direction:column}.planning-subject-card{min-height:0}.planning-period-card>header,.planning-period-document>header{align-items:flex-start;flex-direction:column}.planning-strategies,.planning-strategies>p,.planning-strategy-topic,.planning-period-full,.planning-page-context .planning-page-schedule,.planning-evaluation-fields>p{grid-column:auto}.planning-page-week{text-align:left}.planning-page-week time{grid-column:1/-1}}
+@media(max-width:700px){.planning-objectives-heading{align-items:stretch;flex-direction:column}.planning-objectives-heading .secondary-button{width:100%}}
 @media print{
     @page{size:A4 portrait;margin:13mm}
     body{background:white;color:#243047}

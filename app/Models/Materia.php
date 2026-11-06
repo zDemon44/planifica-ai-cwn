@@ -33,4 +33,9 @@ class Materia extends Model
     {
         return $this->hasMany(IndicadorEvaluacion::class);
     }
+
+    public function objetivosCurriculares(): HasMany
+    {
+        return $this->hasMany(ObjetivoCurricular::class);
+    }
 }

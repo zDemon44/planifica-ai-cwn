@@ -17,12 +17,22 @@
     </section>
 
     <section class="panel record-list curriculum-list">
-        <div class="panel-heading"><div><h2>Destrezas e indicadores</h2><p>{{ $destrezas->count() }} destrezas activas para el filtro actual.</p></div></div>
+        <div class="panel-heading"><div><h2>Catálogo de la materia</h2><p>{{ $objetivos->count() }} objetivos y {{ $destrezas->count() }} destrezas activas para el filtro actual.</p></div></div>
         <form method="GET" action="{{ route('catalogo-curricular.index') }}" class="list-toolbar">
             <div class="field"><label for="materia_id">Materia</label><select id="materia_id" name="materia_id">@foreach($materias as $materia)<option value="{{ $materia->id }}" @selected($materiaId === $materia->id)>{{ $materia->nombre }}</option>@endforeach</select></div>
             <div class="field"><label for="grado">Grado</label><select id="grado" name="grado">@foreach([2 => '2.º grado', 3 => '3.º grado', 4 => '4.º grado'] as $numero => $etiqueta)<option value="{{ $numero }}" @selected($grado === $numero)>{{ $etiqueta }}</option>@endforeach</select></div>
             <button class="primary-button" type="submit">Filtrar</button>
         </form>
+        <section class="curriculum-objectives">
+            <header><div><h3>Objetivos de aprendizaje</h3><p>Se comparten entre los grados del subnivel Básica Elemental.</p></div><span>{{ $objetivos->count() }}</span></header>
+            <div>
+                @forelse($objetivos as $objetivo)
+                    <article><strong>{{ $objetivo->codigo }}</strong><p>{{ $objetivo->descripcion }}</p></article>
+                @empty
+                    <p class="curriculum-objectives-empty">Aún no hay objetivos registrados para esta materia.</p>
+                @endforelse
+            </div>
+        </section>
         <div class="curriculum-groups">
             @forelse($destrezas->groupBy('grupo') as $grupo => $registros)
                 <article class="curriculum-group">

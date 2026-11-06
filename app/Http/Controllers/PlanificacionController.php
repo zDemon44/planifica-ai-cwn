@@ -8,6 +8,7 @@ use App\Models\Asignacion;
 use App\Models\DestrezaCurricular;
 use App\Models\Horario;
 use App\Models\IndicadorEvaluacion;
+use App\Models\ObjetivoCurricular;
 use App\Models\PeriodoAcademico;
 use App\Models\Planificacion;
 use App\Services\CalendarioPlanificaciones;
@@ -146,8 +147,18 @@ class PlanificacionController extends Controller
             ?? ($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['jornada'] : 'matutina');
 
         $grado = $asignacionSeleccionada?->seccion?->curso?->grado;
+        $objetivosCurriculares = collect();
+        $objetivosSeleccionados = collect(old(
+            'objetivo_curricular_ids',
+            $planificacion->exists ? $planificacion->objetivosCurriculares()->pluck('objetivos_curriculares.id')->all() : [],
+        ))->filter()->map(fn ($id): int => (int) $id)->values();
         $destrezasCurriculares = collect();
         $indicadoresPorDestreza = [];
+        if ($asignacionSeleccionada) {
+            $objetivosCurriculares = ObjetivoCurricular::where('materia_id', $asignacionSeleccionada->materia_id)
+                ->where('subnivel', $asignacionSeleccionada->seccion->curso->subnivel)
+                ->where('activo', true)->orderBy('codigo')->get();
+        }
         if ($asignacionSeleccionada && $grado) {
             $destrezasCurriculares = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta
                 ->where('indicadores_evaluacion.activo', true)->orderBy('codigo'), 'indicadores.competencias'])
@@ -163,7 +174,7 @@ class PlanificacionController extends Controller
             ])->all();
         }
 
-        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'destrezasCurriculares', 'indicadoresPorDestreza', 'semanaSeleccionada'));
+        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'objetivosCurriculares', 'objetivosSeleccionados', 'destrezasCurriculares', 'indicadoresPorDestreza', 'semanaSeleccionada'));
     }
 
     public function show(Planificacion $planificacion): View
@@ -176,16 +187,20 @@ class PlanificacionController extends Controller
 
     public function store(GuardarPlanificacionRequest $request): RedirectResponse
     {
-        $datos = $request->safe()->except(['version', 'periodos']);
+        $datos = $request->safe()->except(['version', 'periodos', 'objetivo_curricular_ids']);
         $contenidos = $request->validated('periodos');
-        $planificacion = DB::transaction(function () use ($datos, $contenidos, $request): Planificacion {
-            $asignacion = Asignacion::with('seccion.periodo')->findOrFail($datos['asignacion_id']);
+        $objetivoIds = $request->validated('objetivo_curricular_ids', []);
+        $planificacion = DB::transaction(function () use ($datos, $contenidos, $objetivoIds, $request): Planificacion {
+            $asignacion = Asignacion::with(['seccion.periodo', 'seccion.curso'])->findOrFail($datos['asignacion_id']);
             $this->validarContexto($asignacion, $datos, $request);
+            [$objetivoIds, $objetivosTexto] = $this->prepararObjetivosCurriculares($asignacion, $objetivoIds);
             $contenidos = $this->prepararSeleccionesCurriculares($asignacion->load('seccion.curso'), $contenidos);
             $periodos = $this->construirPeriodos->handle($asignacion, $datos['fecha_inicio']);
             $this->validarCantidadPeriodos($periodos->count(), $contenidos);
             $datos['numero_periodos'] = $periodos->sum(fn (array $periodo): int => $periodo['numero_fin'] - $periodo['numero_inicio'] + 1);
+            $datos['objetivos_aprendizaje'] = $objetivosTexto;
             $planificacion = Planificacion::create($datos);
+            $planificacion->objetivosCurriculares()->sync($objetivoIds);
             $planificacion->periodos()->createMany($periodos->values()->map(
                 fn (array $periodo, int $indice): array => [...array_diff_key($periodo, ['dia' => true, 'incluye_recreo' => true]), ...$contenidos[$indice]]
             )->all());
@@ -198,9 +213,10 @@ class PlanificacionController extends Controller
 
     public function update(GuardarPlanificacionRequest $request, Planificacion $planificacion): RedirectResponse
     {
-        $datos = $request->safe()->except(['version', 'periodos']);
+        $datos = $request->safe()->except(['version', 'periodos', 'objetivo_curricular_ids']);
         $contenidos = $request->validated('periodos');
-        DB::transaction(function () use ($datos, $contenidos, $request, $planificacion): void {
+        $objetivoIds = $request->validated('objetivo_curricular_ids', []);
+        DB::transaction(function () use ($datos, $contenidos, $objetivoIds, $request, $planificacion): void {
             $registro = Planificacion::lockForUpdate()->findOrFail($planificacion->id);
             Gate::authorize('update', $registro);
             $this->validarVersion($registro, $request->integer('version'));
@@ -208,10 +224,13 @@ class PlanificacionController extends Controller
                 throw ValidationException::withMessages(['asignacion_id' => 'La asignación de una planificación ya creada no se puede cambiar.']);
             }
             $this->validarContexto($registro->asignacion->load('seccion.periodo'), $datos, $request);
+            [$objetivoIds, $objetivosTexto] = $this->prepararObjetivosCurriculares($registro->asignacion->load('seccion.curso'), $objetivoIds);
             $contenidos = $this->prepararSeleccionesCurriculares($registro->asignacion->load('seccion.curso'), $contenidos);
+            $datos['objetivos_aprendizaje'] = $objetivosTexto;
             $registro->fill($datos);
             $registro->version++;
             $registro->save();
+            $registro->objetivosCurriculares()->sync($objetivoIds);
             $periodos = $registro->periodos()->lockForUpdate()->get();
             $this->validarCantidadPeriodos($periodos->count(), $contenidos);
             foreach ($periodos->values() as $indice => $periodo) {
@@ -390,5 +409,29 @@ class PlanificacionController extends Controller
         unset($contenido);
 
         return $contenidos;
+    }
+
+    /** @return array{0: array<int>, 1: ?string} */
+    private function prepararObjetivosCurriculares(Asignacion $asignacion, array $objetivoIds): array
+    {
+        $ids = collect($objetivoIds)->filter()->map(fn ($id): int => (int) $id)->unique()->values();
+        if ($ids->isEmpty()) {
+            return [[], null];
+        }
+
+        $objetivos = ObjetivoCurricular::whereIn('id', $ids)
+            ->where('materia_id', $asignacion->materia_id)
+            ->where('subnivel', $asignacion->seccion->curso->subnivel)
+            ->where('activo', true)->get()->keyBy('id');
+
+        if ($objetivos->count() !== $ids->count()) {
+            throw ValidationException::withMessages([
+                'objetivo_curricular_ids' => 'Selecciona objetivos que correspondan a la materia y al subnivel del curso.',
+            ]);
+        }
+
+        $texto = $ids->map(fn (int $id): string => $objetivos[$id]->codigo.' '.$objetivos[$id]->descripcion)->implode("\n\n");
+
+        return [$ids->all(), $texto];
     }
 }
