@@ -31,10 +31,40 @@
                                 @php($usoDestreza = $usosDestrezas->get($destreza->id))
                                 <tr>
                                     @if($loop->first)<th class="tracking-group" rowspan="{{ $registros->count() }}">{{ $grupo }}</th>@endif
-                                    <td class="tracking-curricular-cell {{ $usoDestreza ? 'is-used' : '' }}"><p>{{ $destreza->descripcion }}</p></td>
-                                    <td class="tracking-competence {{ $usoDestreza ? 'is-used' : '' }}">{{ $destreza->competencias->pluck('codigo')->implode(', ') ?: '—' }}</td>
+                                    <td class="tracking-curricular-cell {{ $usoDestreza ? 'is-used' : '' }}">
+                                        <div class="tracking-item-heading">
+                                            <strong class="tracking-code">{{ $destreza->codigo }}</strong>
+                                            <span class="tracking-curriculum-badge {{ $destreza->curriculo->vigente ? 'is-current' : 'is-previous' }}">{{ $destreza->curriculo->nombre }}</span>
+                                        </div>
+                                        <p class="tracking-description">{{ $destreza->descripcion }}</p>
+                                    </td>
+                                    <td class="tracking-competence {{ $usoDestreza ? 'is-used' : '' }}">
+                                        @forelse($destreza->competencias as $competencia)
+                                            <span class="tracking-competence-badge">{{ $competencia->codigo }}</span>
+                                        @empty
+                                            <span class="tracking-empty-value">—</span>
+                                        @endforelse
+                                    </td>
                                     <td class="tracking-count {{ $usoDestreza ? 'is-used' : '' }}"><strong>{{ $usoDestreza?->usos ?? 0 }}</strong><small>{{ $usoDestreza?->planificaciones ?? 0 }} planif.</small></td>
-                                    <td class="tracking-indicators">@foreach($destreza->indicadores as $indicador)@php($usoIndicador = $usosIndicadores->get($indicador->id))<div class="tracking-indicator {{ $usoIndicador ? 'is-used' : '' }}"><p>{{ $indicador->descripcion }}</p>@foreach($indicador->competencias as $competencia)<span>{{ $competencia->codigo }}</span>@endforeach</div>@endforeach</td>
+                                    <td class="tracking-indicators">
+                                        @foreach($destreza->indicadores as $indicador)
+                                            @php($usoIndicador = $usosIndicadores->get($indicador->id))
+                                            <article class="tracking-indicator {{ $usoIndicador ? 'is-used' : '' }}">
+                                                <div class="tracking-item-heading">
+                                                    <strong class="tracking-code">{{ $indicador->codigo }}</strong>
+                                                    <span class="tracking-curriculum-badge {{ $indicador->curriculo->vigente ? 'is-current' : 'is-previous' }}">{{ $indicador->curriculo->nombre }}</span>
+                                                </div>
+                                                <p class="tracking-description">{{ $indicador->descripcion }}</p>
+                                                @if($indicador->competencias->isNotEmpty())
+                                                    <div class="tracking-competence-list" aria-label="Competencias curriculares">
+                                                        @foreach($indicador->competencias as $competencia)
+                                                            <span class="tracking-competence-badge">{{ $competencia->codigo }}</span>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </article>
+                                        @endforeach
+                                    </td>
                                     <td class="tracking-indicator-counts">@foreach($destreza->indicadores as $indicador)@php($usoIndicador = $usosIndicadores->get($indicador->id))<div class="tracking-count {{ $usoIndicador ? 'is-used' : '' }}"><strong>{{ $usoIndicador?->usos ?? 0 }}</strong><small>{{ $usoIndicador?->planificaciones ?? 0 }} planif.</small></div>@endforeach</td>
                                 </tr>
                             @endforeach

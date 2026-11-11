@@ -25,7 +25,7 @@ class Planificacion extends Model
     protected $table = 'planificaciones';
 
     protected $fillable = [
-        'asignacion_id', 'trimestre', 'titulo_unidad', 'jornada', 'numero_semana',
+        'asignacion_id', 'unidad_libro_id', 'trimestre', 'titulo_unidad', 'jornada', 'numero_semana',
         'fecha_inicio', 'fecha_fin', 'numero_periodos', 'objetivos_aprendizaje',
         'adaptacion_destreza', 'adaptacion_indicadores_evaluacion',
         'adaptacion_recursos', 'adaptacion_orientaciones_metodologicas',
@@ -47,6 +47,11 @@ class Planificacion extends Model
     public function asignacion(): BelongsTo
     {
         return $this->belongsTo(Asignacion::class);
+    }
+
+    public function unidadLibro(): BelongsTo
+    {
+        return $this->belongsTo(UnidadLibro::class);
     }
 
     public function revisor(): BelongsTo

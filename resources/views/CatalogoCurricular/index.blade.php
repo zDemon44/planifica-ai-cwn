@@ -11,15 +11,17 @@
         <form method="POST" action="{{ route('catalogo-curricular.importar') }}" enctype="multipart/form-data" class="form-grid">
             @csrf
             <div class="field"><label for="materia_id_importar">Materia *</label><select id="materia_id_importar" name="materia_id" required><option value="">Selecciona una materia</option>@foreach($materias as $materia)<option value="{{ $materia->id }}" @selected((int) old('materia_id', $materiaId) === $materia->id)>{{ $materia->nombre }}</option>@endforeach</select></div>
+            <div class="field"><label for="curriculo_id_importar">Currículo de origen *</label><select id="curriculo_id_importar" name="curriculo_id" required><option value="">Selecciona un currículo</option>@foreach($curriculos as $curriculo)<option value="{{ $curriculo->id }}" @selected((int) old('curriculo_id', $curriculoId) === $curriculo->id)>{{ $curriculo->nombre }}{{ $curriculo->vigente ? ' · Vigente' : '' }}</option>@endforeach</select></div>
             <div class="field"><label for="archivo">Archivo Excel (.xlsx) *</label><input id="archivo" name="archivo" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required><small>Se importan las adaptaciones de 2.º, 3.º y 4.º grado.</small></div>
             <div class="form-actions curriculum-import-action"><button class="primary-button" type="submit">Importar catálogo</button></div>
         </form>
     </section>
 
     <section class="panel record-list curriculum-list">
-        <div class="panel-heading"><div><h2>Catálogo de la materia</h2><p>{{ $objetivos->count() }} objetivos y {{ $destrezas->count() }} destrezas activas para el filtro actual.</p></div></div>
+        <div class="panel-heading"><div><h2>Catálogo de la materia</h2><p>{{ $objetivos->count() }} objetivos y {{ $destrezas->count() }} destrezas activas · {{ $curriculos->firstWhere('id', $curriculoId)?->nombre }}.</p></div></div>
         <form method="GET" action="{{ route('catalogo-curricular.index') }}" class="list-toolbar">
             <div class="field"><label for="materia_id">Materia</label><select id="materia_id" name="materia_id">@foreach($materias as $materia)<option value="{{ $materia->id }}" @selected($materiaId === $materia->id)>{{ $materia->nombre }}</option>@endforeach</select></div>
+            <div class="field"><label for="curriculo_id">Currículo</label><select id="curriculo_id" name="curriculo_id">@foreach($curriculos as $curriculo)<option value="{{ $curriculo->id }}" @selected($curriculoId === $curriculo->id)>{{ $curriculo->nombre }}{{ $curriculo->vigente ? ' · Vigente' : '' }}</option>@endforeach</select></div>
             <div class="field"><label for="grado">Grado</label><select id="grado" name="grado">@foreach([2 => '2.º grado', 3 => '3.º grado', 4 => '4.º grado'] as $numero => $etiqueta)<option value="{{ $numero }}" @selected($grado === $numero)>{{ $etiqueta }}</option>@endforeach</select></div>
             <button class="primary-button" type="submit">Filtrar</button>
         </form>

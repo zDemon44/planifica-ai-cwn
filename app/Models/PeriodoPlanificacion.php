@@ -15,7 +15,7 @@ class PeriodoPlanificacion extends Model
     protected $table = 'periodos_planificacion';
 
     protected $fillable = [
-        'orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana',
+        'tema_libro_id', 'orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana',
         'fecha_clase', 'hora_inicio', 'hora_fin', 'destreza_curricular_id', 'indicador_evaluacion_id', 'destrezas_criterios_desempeno',
         'indicadores_evaluacion', 'recursos', 'tema', 'experiencia', 'dua_experiencia',
         'reflexion', 'dua_reflexion', 'conceptualizacion', 'dua_conceptualizacion',
@@ -26,6 +26,11 @@ class PeriodoPlanificacion extends Model
     public function planificacion(): BelongsTo
     {
         return $this->belongsTo(Planificacion::class);
+    }
+
+    public function temaLibro(): BelongsTo
+    {
+        return $this->belongsTo(TemaLibro::class);
     }
 
     protected function casts(): array

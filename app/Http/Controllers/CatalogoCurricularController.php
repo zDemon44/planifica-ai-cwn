@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ImportarCatalogoCurricularRequest;
+use App\Models\Curriculo;
 use App\Models\DestrezaCurricular;
 use App\Models\Materia;
 use App\Models\ObjetivoCurricular;
@@ -20,27 +21,38 @@ class CatalogoCurricularController extends Controller
         Gate::authorize('gestionar-docencia');
         $filtros = $request->validate([
             'materia_id' => ['nullable', 'integer', 'exists:materias,id'],
+            'curriculo_id' => ['nullable', 'integer', 'exists:curriculos,id'],
             'grado' => ['nullable', 'integer', Rule::in([2, 3, 4])],
         ]);
         $materias = Materia::where('estado', 'activo')->orderBy('nombre')->get();
+        $curriculos = Curriculo::orderByDesc('vigente')->orderBy('nombre')->get();
         $materiaId = (int) ($filtros['materia_id'] ?? $materias->first()?->id);
+        $curriculoId = (int) ($filtros['curriculo_id'] ?? $curriculos->first()?->id);
         $grado = (int) ($filtros['grado'] ?? 4);
         $subnivel = 'basica_elemental';
         $objetivos = ObjetivoCurricular::where('materia_id', $materiaId)->where('subnivel', $subnivel)
             ->where('activo', true)->orderBy('codigo')->get();
-        $destrezas = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta->where('activo', true)->orderBy('codigo'), 'indicadores.competencias'])
-            ->where('materia_id', $materiaId)->where('grado', $grado)->where('activo', true)
+        $destrezas = DestrezaCurricular::with(['curriculo', 'competencias', 'indicadores' => fn ($consulta) => $consulta->where('activo', true)->orderBy('codigo'), 'indicadores.competencias'])
+            ->where('materia_id', $materiaId)->where('curriculo_id', $curriculoId)
+            ->where('grado', $grado)->where('activo', true)
             ->orderBy('grupo')->orderBy('codigo')->get();
 
-        return view('CatalogoCurricular.index', compact('materias', 'materiaId', 'grado', 'objetivos', 'destrezas'));
+        return view('CatalogoCurricular.index', compact(
+            'materias', 'curriculos', 'materiaId', 'curriculoId', 'grado', 'objetivos', 'destrezas'
+        ));
     }
 
     public function importar(ImportarCatalogoCurricularRequest $request, ImportarCatalogoCurricularExcel $importador): RedirectResponse
     {
         $materia = Materia::findOrFail($request->integer('materia_id'));
-        $resultado = $importador->handle($materia, $request->file('archivo'));
+        $curriculo = Curriculo::findOrFail($request->integer('curriculo_id'));
+        $resultado = $importador->handle($materia, $curriculo, $request->file('archivo'));
 
-        return redirect()->route('catalogo-curricular.index', ['materia_id' => $materia->id, 'grado' => 4])
+        return redirect()->route('catalogo-curricular.index', [
+            'materia_id' => $materia->id,
+            'curriculo_id' => $curriculo->id,
+            'grado' => 4,
+        ])
             ->with('success', "Catálogo importado: {$resultado['destrezas']} destrezas, {$resultado['indicadores']} indicadores, {$resultado['relaciones']} relaciones y {$resultado['competencias']} competencias.");
     }
 }

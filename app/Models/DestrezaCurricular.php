@@ -11,7 +11,7 @@ class DestrezaCurricular extends Model
 {
     protected $table = 'destrezas_curriculares';
 
-    protected $fillable = ['materia_id', 'grado', 'codigo', 'descripcion', 'grupo', 'activo'];
+    protected $fillable = ['materia_id', 'curriculo_id', 'grado', 'codigo', 'descripcion', 'grupo', 'activo'];
 
     protected function casts(): array
     {
@@ -21,6 +21,11 @@ class DestrezaCurricular extends Model
     public function materia(): BelongsTo
     {
         return $this->belongsTo(Materia::class);
+    }
+
+    public function curriculo(): BelongsTo
+    {
+        return $this->belongsTo(Curriculo::class);
     }
 
     public function indicadores(): BelongsToMany
@@ -36,5 +41,10 @@ class DestrezaCurricular extends Model
     public function periodosPlanificacion(): HasMany
     {
         return $this->hasMany(PeriodoPlanificacion::class);
+    }
+
+    public function temasLibro(): HasMany
+    {
+        return $this->hasMany(TemaLibro::class);
     }
 }

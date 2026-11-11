@@ -8,9 +8,12 @@ use App\Models\DestrezaCurricular;
 use App\Models\Docente;
 use App\Models\Horario;
 use App\Models\IndicadorEvaluacion;
+use App\Models\LibroTexto;
 use App\Models\ObjetivoCurricular;
 use App\Models\Planificacion;
 use App\Models\Recreo;
+use App\Models\TemaLibro;
+use App\Models\UnidadLibro;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
@@ -137,6 +140,124 @@ class PlanificacionesTest extends TestCase
         $this->assertDatabaseCount('planificaciones', 0);
     }
 
+    public function test_unidad_del_libro_asigna_objetivos_tema_y_catalogo_curricular_automaticamente(): void
+    {
+        $asignacion = Asignacion::factory()->create();
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $datos = $this->datos($asignacion);
+        $objetivoManual = ObjetivoCurricular::findOrFail($datos['objetivo_curricular_ids'][0]);
+        $objetivoUnidad = ObjetivoCurricular::create([
+            'materia_id' => $asignacion->materia_id,
+            'subnivel' => $asignacion->seccion->curso->subnivel,
+            'codigo' => 'O.M.2.2.',
+            'descripcion' => 'Objetivo asignado por la unidad del libro.',
+            'activo' => true,
+        ]);
+        $destrezaTema = DestrezaCurricular::findOrFail($datos['periodos'][0]['destreza_curricular_id']);
+        $indicadorTema = IndicadorEvaluacion::findOrFail($datos['periodos'][0]['indicador_evaluacion_id']);
+        $otraDestreza = DestrezaCurricular::create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'codigo' => 'M.2.9.1',
+            'descripcion' => 'Destreza manipulada desde el formulario.',
+            'grupo' => 9,
+            'activo' => true,
+        ]);
+        $otroIndicador = IndicadorEvaluacion::create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'codigo' => 'I.M.2.9.1',
+            'descripcion' => 'Indicador manipulado desde el formulario.',
+            'grupo' => 9,
+            'activo' => true,
+        ]);
+        $otraDestreza->indicadores()->attach($otroIndicador);
+        $libro = LibroTexto::factory()->create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'titulo' => 'Matemática 4.º EGB',
+        ]);
+        $unidad = UnidadLibro::factory()->create([
+            'libro_texto_id' => $libro->id,
+            'numero' => 1,
+            'titulo' => 'Curiosidades matemáticas',
+        ]);
+        $unidad->objetivos()->attach($objetivoUnidad);
+        $tema = TemaLibro::factory()->create([
+            'unidad_libro_id' => $unidad->id,
+            'orden' => 1,
+            'etiqueta' => 'Tema 1',
+            'titulo' => 'Sucesiones numéricas crecientes',
+            'destreza_curricular_id' => $destrezaTema->id,
+            'indicador_evaluacion_id' => $indicadorTema->id,
+        ]);
+
+        $formulario = $this->actingAs($docente)->get(route('planificaciones.create', ['asignacion_id' => $asignacion->id]));
+
+        $formulario->assertSee('Unidad 1 · Curiosidades matemáticas')
+            ->assertSee('Se asignan automáticamente según la unidad del libro.')
+            ->assertSee('Tema libre del docente');
+
+        $datos['unidad_libro_id'] = $unidad->id;
+        $datos['objetivo_curricular_ids'] = [$objetivoManual->id];
+        $datos['periodos'][0]['tema_libro_id'] = $tema->id;
+        $datos['periodos'][0]['tema'] = 'Tema alterado';
+        $datos['periodos'][0]['destreza_curricular_id'] = $otraDestreza->id;
+        $datos['periodos'][0]['indicador_evaluacion_id'] = $otroIndicador->id;
+
+        $this->post(route('planificaciones.store'), $datos)->assertSessionHasNoErrors();
+
+        $planificacion = Planificacion::with('periodos')->sole();
+        $this->assertSame($unidad->id, $planificacion->unidad_libro_id);
+        $this->assertSame('Curiosidades matemáticas', $planificacion->titulo_unidad);
+        $this->assertDatabaseHas('objetivo_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'objetivo_curricular_id' => $objetivoUnidad->id,
+        ]);
+        $this->assertDatabaseMissing('objetivo_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'objetivo_curricular_id' => $objetivoManual->id,
+        ]);
+        $this->assertDatabaseHas('periodos_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'tema_libro_id' => $tema->id,
+            'tema' => 'Sucesiones numéricas crecientes',
+            'destreza_curricular_id' => $destrezaTema->id,
+            'indicador_evaluacion_id' => $indicadorTema->id,
+        ]);
+        $this->assertDatabaseHas('periodos_planificacion', [
+            'planificacion_id' => $planificacion->id,
+            'tema_libro_id' => null,
+            'tema' => 'Tema de la clase',
+        ]);
+    }
+
+    public function test_rechaza_un_tema_que_no_pertenece_a_la_unidad_seleccionada(): void
+    {
+        $asignacion = Asignacion::factory()->create();
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $datos = $this->datos($asignacion);
+        $libro = LibroTexto::factory()->create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+        ]);
+        $unidadSeleccionada = UnidadLibro::factory()->create(['libro_texto_id' => $libro->id, 'numero' => 1]);
+        $otraUnidad = UnidadLibro::factory()->create(['libro_texto_id' => $libro->id, 'numero' => 2]);
+        $temaAjeno = TemaLibro::factory()->create([
+            'unidad_libro_id' => $otraUnidad->id,
+            'destreza_curricular_id' => $datos['periodos'][0]['destreza_curricular_id'],
+            'indicador_evaluacion_id' => $datos['periodos'][0]['indicador_evaluacion_id'],
+        ]);
+        $unidadSeleccionada->objetivos()->attach($datos['objetivo_curricular_ids']);
+        $datos['unidad_libro_id'] = $unidadSeleccionada->id;
+        $datos['periodos'][0]['tema_libro_id'] = $temaAjeno->id;
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors('periodos.0.tema_libro_id');
+
+        $this->assertDatabaseCount('planificaciones', 0);
+    }
+
     public function test_docente_navega_planificaciones_por_tarjetas_de_materias_asignadas(): void
     {
         $matematicas = Asignacion::factory()->create();
@@ -167,13 +288,23 @@ class PlanificacionesTest extends TestCase
         $asignacion = Asignacion::factory()->create();
         $ajena = Asignacion::factory()->create();
         $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $this->datos($asignacion);
 
         $formulario = $this->actingAs($docente)->get(route('planificaciones.create', ['asignacion_id' => $asignacion->id]));
 
         $formulario->assertOk()
             ->assertSee($asignacion->materia->nombre)
             ->assertSee('name="asignacion_id" value="'.$asignacion->id.'"', false)
-            ->assertDontSee('<select id="asignacion_id"', false);
+            ->assertDontSee('<select id="asignacion_id"', false)
+            ->assertSeeInOrder([
+                'Tema del período',
+                'Destreza con criterios de desempeño',
+                'Indicador de evaluación relacionado',
+                'Recursos',
+                'Desarrollo ERCA',
+                'Orientaciones para la evaluación',
+            ])
+            ->assertDontSee('Organiza el desarrollo del tema con las fases metodológicas del formato institucional.');
         $this->get(route('planificaciones.index', ['asignacion_id' => $ajena->id]))->assertNotFound();
         $this->get(route('planificaciones.create', ['asignacion_id' => $ajena->id]))->assertNotFound();
     }

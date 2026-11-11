@@ -32,6 +32,8 @@
         $fechaInicioInformativa = old('fecha_inicio', $semanaSeleccionada['inicio'] ?? $planificacion->fecha_inicio?->format('Y-m-d'));
         $fechaFinInformativa = old('fecha_fin', $semanaSeleccionada['fin'] ?? $planificacion->fecha_fin?->format('Y-m-d'));
         $cantidadBloques = $bloquesPlanificacion->count();
+        $unidadLibroSeleccionadaId = (int) old('unidad_libro_id', $planificacion->unidad_libro_id ?? 0);
+        $unidadLibroSeleccionada = $unidadesLibro->firstWhere('id', $unidadLibroSeleccionadaId);
         $resumenHorario = $cantidadPeriodos
             ? sprintf(
                 '%d período%s de 45 min distribuido%s en %d bloque%s.',
@@ -120,13 +122,36 @@
                         @enderror
                     </div>
                 @endif
-                <div class="field"><label for="titulo_unidad">Título de la unidad</label><input id="titulo_unidad"
-                        name="titulo_unidad" value="{{ old('titulo_unidad', $planificacion->titulo_unidad) }}"
-                        maxlength="255" placeholder="Escribe el título de la unidad">
-                    @error('titulo_unidad')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
+                @if ($unidadesLibro->isNotEmpty())
+                    <div class="field"><label for="unidad_libro_id">Unidad del libro *</label>
+                        <select id="unidad_libro_id" name="unidad_libro_id" required>
+                            <option value="">Selecciona una unidad</option>
+                            @foreach ($unidadesLibro->groupBy('libro_texto_id') as $unidadesDelLibro)
+                                <optgroup label="{{ $unidadesDelLibro->first()->libroTexto->titulo }}">
+                                    @foreach ($unidadesDelLibro as $unidad)
+                                        <option value="{{ $unidad->id }}" @selected($unidadLibroSeleccionadaId === $unidad->id)>
+                                            Unidad {{ $unidad->numero }} · {{ $unidad->titulo }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
+                        <input id="titulo_unidad" name="titulo_unidad" type="hidden"
+                            value="{{ old('titulo_unidad', $unidadLibroSeleccionada?->titulo ?? $planificacion->titulo_unidad) }}">
+                        <small class="planning-schedule-hint">Los objetivos y temas se cargarán desde la unidad seleccionada.</small>
+                        @error('unidad_libro_id')
+                            <small class="field-error">{{ $message }}</small>
+                        @enderror
+                    </div>
+                @else
+                    <div class="field"><label for="titulo_unidad">Título de la unidad</label><input id="titulo_unidad"
+                            name="titulo_unidad" value="{{ old('titulo_unidad', $planificacion->titulo_unidad) }}"
+                            maxlength="255" placeholder="Escribe el título de la unidad">
+                        @error('titulo_unidad')
+                            <small class="field-error">{{ $message }}</small>
+                        @enderror
+                    </div>
+                @endif
                 <div class="field"><label for="jornada">Jornada *</label><select id="jornada" name="jornada"
                         required>
                         <option value="matutina" @selected(old('jornada', $jornadaSugerida) === 'matutina')>Matutina</option>
@@ -146,7 +171,21 @@
                     <p>Información general de la semana</p>
                 </div>
             </div>
-            @if ($asignacionSeleccionada && $objetivosCurriculares->isEmpty())
+            @if ($unidadesLibro->isNotEmpty())
+                <div class="planning-objectives planning-objectives-automatic">
+                    <div class="planning-objectives-heading">
+                        <div><strong>Objetivos de aprendizaje</strong><small>Se asignan automáticamente según la unidad del libro.</small></div>
+                        <span class="planning-automatic-badge">Automático</span>
+                    </div>
+                    <div id="objetivos-unidad" class="planning-unit-objectives">
+                        @forelse($unidadLibroSeleccionada?->objetivos ?? collect() as $objetivo)
+                            <article><strong>{{ $objetivo->codigo }}</strong><p>{{ $objetivo->descripcion }}</p></article>
+                        @empty
+                            <p class="planning-unit-empty">Selecciona una unidad para consultar sus objetivos.</p>
+                        @endforelse
+                    </div>
+                </div>
+            @elseif ($asignacionSeleccionada && $objetivosCurriculares->isEmpty())
                 <p class="legacy-note">Todavía no hay objetivos curriculares registrados para
                     {{ $asignacionSeleccionada->materia->nombre }} en este subnivel.</p>
             @else
@@ -261,10 +300,52 @@
                                 "periodos.$indice.indicador_evaluacion_id",
                                 $bloque['indicador_evaluacion_id'] ?? 0,
                             );
+                            $temaLibroSeleccionado = (int) old(
+                                "periodos.$indice.tema_libro_id",
+                                $bloque['tema_libro_id'] ?? 0,
+                            );
                             $indicadoresDisponibles =
                                 $destrezasCurriculares->firstWhere('id', $destrezaSeleccionada)?->indicadores ??
                                 collect();
                         @endphp
+                        <section class="planning-period-topic">
+                            <div class="planning-period-field-heading">
+                                <span>01</span>
+                                <div><strong>Tema del período</strong><small>Selecciona un tema del libro o escribe uno libre.</small></div>
+                            </div>
+                            @if ($unidadesLibro->isNotEmpty())
+                                <div class="field planning-book-topic">
+                                    <label for="periodos_{{ $indice }}_tema_libro">Origen del tema</label>
+                                    <select id="periodos_{{ $indice }}_tema_libro"
+                                        class="book-topic-select" name="periodos[{{ $indice }}][tema_libro_id]"
+                                        data-period="{{ $indice }}" data-selected="{{ $temaLibroSeleccionado }}">
+                                        <option value="">Tema libre del docente</option>
+                                        @foreach ($unidadLibroSeleccionada?->temas ?? collect() as $temaLibro)
+                                            <option value="{{ $temaLibro->id }}" @selected($temaLibroSeleccionado === $temaLibro->id)
+                                                @disabled(!$temaLibro->destreza_curricular_id || !$temaLibro->indicador_evaluacion_id)>
+                                                {{ $temaLibro->etiqueta }} · {{ $temaLibro->titulo }}{{ !$temaLibro->destreza_curricular_id || !$temaLibro->indicador_evaluacion_id ? ' · Pendiente de catálogo' : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <small class="planning-topic-hint">Los temas del libro completan automáticamente la destreza y el indicador.</small>
+                                    @error("periodos.$indice.tema_libro_id")
+                                        <small class="field-error">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            @endif
+                            <div class="field planning-textarea planning-topic-text">
+                                <label for="periodos_{{ $indice }}_tema">Tema</label>
+                                <textarea id="periodos_{{ $indice }}_tema" name="periodos[{{ $indice }}][tema]" rows="2"
+                                    placeholder="Escribe el tema que se desarrollará" @readonly($temaLibroSeleccionado)>{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
+                                @error("periodos.$indice.tema")
+                                    <small class="field-error">{{ $message }}</small>
+                                @enderror
+                            </div>
+                        </section>
+                        <div class="planning-period-field-heading planning-period-full">
+                            <span>02</span>
+                            <div><strong>Selección curricular</strong><small>Relaciona el tema con su destreza e indicador.</small></div>
+                        </div>
                         <div class="field planning-curriculum-field"><label
                                 for="periodos_{{ $indice }}_destreza">Destreza con criterios de desempeño
                                 *</label><select id="periodos_{{ $indice }}_destreza"
@@ -272,10 +353,21 @@
                                 name="periodos[{{ $indice }}][destreza_curricular_id]"
                                 data-period="{{ $indice }}">
                                 <option value="">Selecciona una destreza</option>
-                                @foreach ($destrezasCurriculares as $destreza)
-                                    <option value="{{ $destreza->id }}" @selected($destrezaSeleccionada === $destreza->id)>Grupo
-                                        {{ $destreza->grupo }} · {{ Str::limit($destreza->descripcion, 115) }}
-                                    </option>
+                                @foreach ($destrezasCurriculares->groupBy('curriculo_id') as $destrezasDelCurriculo)
+                                    <optgroup label="{{ $destrezasDelCurriculo->first()->curriculo->nombre }}">
+                                        @foreach ($destrezasDelCurriculo as $destreza)
+                                            @php
+                                                $descripcionDestreza = preg_replace(
+                                                    '/^' . preg_quote($destreza->codigo, '/') . '\.?\s*/u',
+                                                    '',
+                                                    $destreza->descripcion,
+                                                );
+                                            @endphp
+                                            <option value="{{ $destreza->id }}" @selected($destrezaSeleccionada === $destreza->id)>
+                                                Grupo {{ $destreza->grupo }} · {{ $descripcionDestreza }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
                                 @endforeach
                             </select>
                             @error("periodos.$indice.destreza_curricular_id")
@@ -291,16 +383,40 @@
                                 <option value="">
                                     {{ $destrezaSeleccionada ? 'Selecciona un indicador' : 'Selecciona primero una destreza' }}
                                 </option>
-                                @foreach ($indicadoresDisponibles as $indicador)
-                                    <option value="{{ $indicador->id }}" @selected($indicadorSeleccionado === $indicador->id)>
-                                        {{ Str::limit($indicador->descripcion, 115) }}
-                                    </option>
+                                @foreach ($indicadoresDisponibles->groupBy('curriculo_id') as $indicadoresDelCurriculo)
+                                    <optgroup label="{{ $indicadoresDelCurriculo->first()->curriculo->nombre }}">
+                                        @foreach ($indicadoresDelCurriculo as $indicador)
+                                            @php
+                                                $descripcionIndicador = preg_replace(
+                                                    '/^' . preg_quote($indicador->codigo, '/') . '\.?\s*/u',
+                                                    '',
+                                                    $indicador->descripcion,
+                                                );
+                                            @endphp
+                                            <option value="{{ $indicador->id }}" @selected($indicadorSeleccionado === $indicador->id)>
+                                                {{ $descripcionIndicador }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
                                 @endforeach
                             </select>
                             @error("periodos.$indice.indicador_evaluacion_id")
                                 <small class="field-error">{{ $message }}</small>
                             @enderror
                         </div>
+                        @if(auth()->user()->role === 'DOCENTE')
+                            <div class="planning-ai-assistant" data-period="{{ $indice }}">
+                                <div class="planning-ai-copy"><span aria-hidden="true">✦</span>
+                                    <div><strong>Asistente de planificación</strong>
+                                        <p>Genera una propuesta ERCA con DUA a partir de la destreza y el indicador seleccionados.</p>
+                                    </div>
+                                </div>
+                                <button class="planning-ai-button" type="button"
+                                    data-endpoint="{{ route('planificaciones.asistente.periodos.store') }}"
+                                    data-duration="{{ $bloque['duracion_minutos'] }}" disabled>Generar período con IA</button>
+                                <p class="planning-ai-status" role="status" aria-live="polite" hidden></p>
+                            </div>
+                        @endif
                         <div class="field planning-textarea planning-period-full"><label
                                 for="periodos_{{ $indice }}_recursos">Recursos</label>
                             <textarea id="periodos_{{ $indice }}_recursos" name="periodos[{{ $indice }}][recursos]" rows="3">{{ old("periodos.$indice.recursos", $bloque['recursos'] ?? '') }}</textarea>
@@ -308,16 +424,10 @@
                                 <small class="field-error">{{ $message }}</small>
                             @enderror
                         </div>
-                        <fieldset class="planning-strategies">
-                            <legend>Orientaciones metodológicas para la enseñanza aprendizaje</legend>
-                            <p>Organiza el desarrollo del tema con las fases metodológicas del formato institucional.
-                            </p>
-                            <div class="field planning-textarea planning-strategy-topic">
-                                <label for="periodos_{{ $indice }}_tema">Tema</label>
-                                <textarea id="periodos_{{ $indice }}_tema" name="periodos[{{ $indice }}][tema]" rows="2">{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
-                                @error("periodos.$indice.tema")
-                                    <small class="field-error">{{ $message }}</small>
-                                @enderror
+                        <div class="planning-erca-form">
+                            <div class="planning-period-field-heading">
+                                <span>03</span>
+                                <div><strong>Desarrollo ERCA</strong><small>Describe las actividades y el principio DUA de cada fase.</small></div>
                             </div>
                             @foreach (['experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
                                 @php($campoDua = "dua_{$campo}")
@@ -341,7 +451,7 @@
                                     </div>
                                 </section>
                             @endforeach
-                        </fieldset>
+                        </div>
                         <fieldset class="planning-evaluation-fields">
                             <legend>Orientaciones para la evaluación</legend>
                             <p>Registra la técnica aplicada y el instrumento que permitirá recoger la evidencia.</p>
@@ -443,7 +553,125 @@
     <script>
         (() => {
             const relacionados = @json($indicadoresPorDestreza);
-            const resumir = texto => texto.length > 115 ? `${texto.slice(0, 112)}…` : texto;
+            const unidadesLibro = @json($catalogoUnidades);
+            const csrf = document.querySelector('.planning-form input[name="_token"]')?.value;
+            const asignacionId = {{ (int) ($asignacionSeleccionada?->id ?? 0) }};
+            const selectoresCatalogo = new Map();
+            const camposGenerados = [
+                'tema', 'recursos', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
+                'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
+                'tecnica_evaluacion', 'instrumento_evaluacion'
+            ];
+
+            const controles = periodo => ({
+                destreza: document.getElementById(`periodos_${periodo}_destreza`),
+                indicador: document.getElementById(`periodos_${periodo}_indicador`),
+                asistente: document.querySelector(`.planning-ai-assistant[data-period="${periodo}"]`)
+            });
+
+            const actualizarBotonIa = periodo => {
+                const { destreza, indicador, asistente } = controles(periodo);
+                const boton = asistente?.querySelector('.planning-ai-button');
+                if (boton && !boton.classList.contains('is-loading')) {
+                    boton.disabled = !destreza?.value || !indicador?.value;
+                }
+            };
+
+            const descripcionSinCodigo = item => {
+                const descripcion = item.descripcion.trim();
+                const codigoConPunto = `${item.codigo}.`;
+                if (descripcion.startsWith(codigoConPunto)) {
+                    return descripcion.slice(codigoConPunto.length).trim();
+                }
+                if (descripcion.startsWith(item.codigo)) {
+                    return descripcion.slice(item.codigo.length).replace(/^\.\s*/u, '').trim();
+                }
+                return descripcion;
+            };
+
+            const crearSelectorCatalogo = select => {
+                const contenedor = document.createElement('div');
+                contenedor.className = `planning-catalog-select ${select.classList.contains('curriculum-indicator-select') ? 'is-indicator' : 'is-skill'}`;
+                const boton = document.createElement('button');
+                boton.type = 'button';
+                boton.className = 'planning-catalog-select-trigger';
+                boton.setAttribute('aria-haspopup', 'listbox');
+                boton.setAttribute('aria-expanded', 'false');
+                const texto = document.createElement('span');
+                const menu = document.createElement('div');
+                menu.className = 'planning-catalog-select-menu';
+                menu.setAttribute('role', 'listbox');
+                menu.hidden = true;
+                boton.append(texto);
+                select.before(contenedor);
+                contenedor.append(select, boton, menu);
+                select.classList.add('planning-catalog-native-select');
+
+                const cerrar = () => {
+                    menu.hidden = true;
+                    boton.setAttribute('aria-expanded', 'false');
+                    contenedor.classList.remove('is-open');
+                };
+
+                const reconstruir = () => {
+                    menu.replaceChildren();
+                    const seleccionada = select.selectedOptions[0];
+                    texto.textContent = seleccionada?.textContent.trim() || 'Selecciona una opción';
+                    const bloqueadoPorTema = select.dataset.topicLocked === 'true';
+                    boton.disabled = select.disabled || bloqueadoPorTema;
+                    boton.classList.toggle('is-placeholder', !select.value);
+
+                    [...select.children].forEach(elemento => {
+                        if (elemento instanceof HTMLOptGroupElement) {
+                            const grupo = document.createElement('section');
+                            grupo.className = 'planning-catalog-select-group';
+                            const titulo = document.createElement('strong');
+                            titulo.textContent = elemento.label;
+                            grupo.append(titulo);
+                            [...elemento.children].forEach(opcion => grupo.append(crearOpcion(opcion)));
+                            menu.append(grupo);
+                            return;
+                        }
+                        if (elemento instanceof HTMLOptionElement) {
+                            menu.append(crearOpcion(elemento));
+                        }
+                    });
+                    if (select.disabled || bloqueadoPorTema) cerrar();
+                };
+
+                const crearOpcion = opcion => {
+                    const elemento = document.createElement('button');
+                    elemento.type = 'button';
+                    elemento.className = 'planning-catalog-select-option';
+                    elemento.setAttribute('role', 'option');
+                    elemento.setAttribute('aria-selected', opcion.selected ? 'true' : 'false');
+                    elemento.classList.toggle('is-selected', opcion.selected);
+                    elemento.classList.toggle('is-placeholder', !opcion.value);
+                    elemento.textContent = opcion.textContent.trim();
+                    elemento.addEventListener('click', () => {
+                        select.value = opcion.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        reconstruir();
+                        cerrar();
+                        boton.focus();
+                    });
+                    return elemento;
+                };
+
+                boton.addEventListener('click', () => {
+                    const abrir = menu.hidden;
+                    document.querySelectorAll('.planning-catalog-select.is-open').forEach(abierto => {
+                        if (abierto !== contenedor) abierto.querySelector('.planning-catalog-select-trigger')?.click();
+                    });
+                    menu.hidden = !abrir;
+                    boton.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+                    contenedor.classList.toggle('is-open', abrir);
+                });
+                select.addEventListener('change', reconstruir);
+                selectoresCatalogo.set(select, { reconstruir, cerrar });
+                reconstruir();
+            };
+
             document.querySelectorAll('.curriculum-skill-select').forEach(destreza => {
                 destreza.addEventListener('change', () => {
                     const indicador = document.getElementById(
@@ -451,8 +679,189 @@
                     const opciones = relacionados[destreza.value] || [];
                     indicador.replaceChildren(new Option(opciones.length ? 'Selecciona un indicador' :
                         'No hay indicadores relacionados', ''));
-                    opciones.forEach(item => indicador.add(new Option(resumir(item.descripcion), item.id)));
+                    const opcionesPorCurriculo = opciones.reduce((grupos, item) => {
+                        if (!grupos.has(item.curriculo)) grupos.set(item.curriculo, []);
+                        grupos.get(item.curriculo).push(item);
+                        return grupos;
+                    }, new Map());
+                    opcionesPorCurriculo.forEach((items, curriculo) => {
+                        const grupo = document.createElement('optgroup');
+                        grupo.label = curriculo;
+                        items.forEach(item => grupo.append(new Option(descripcionSinCodigo(item), item.id)));
+                        indicador.append(grupo);
+                    });
                     indicador.disabled = opciones.length === 0;
+                    selectoresCatalogo.get(indicador)?.reconstruir();
+                    actualizarBotonIa(destreza.dataset.period);
+                });
+                const indicador = document.getElementById(`periodos_${destreza.dataset.period}_indicador`);
+                indicador?.addEventListener('change', () => actualizarBotonIa(destreza.dataset.period));
+                actualizarBotonIa(destreza.dataset.period);
+            });
+
+            document.querySelectorAll('.curriculum-skill-select, .curriculum-indicator-select')
+                .forEach(crearSelectorCatalogo);
+
+            const selectorUnidad = document.getElementById('unidad_libro_id');
+            const tituloUnidad = document.getElementById('titulo_unidad');
+            const objetivosUnidad = document.getElementById('objetivos-unidad');
+
+            const unidadActual = () => unidadesLibro[selectorUnidad?.value] || null;
+
+            const mostrarObjetivosUnidad = unidad => {
+                if (!objetivosUnidad) return;
+                objetivosUnidad.replaceChildren();
+                if (!unidad) {
+                    const mensaje = document.createElement('p');
+                    mensaje.className = 'planning-unit-empty';
+                    mensaje.textContent = 'Selecciona una unidad para consultar sus objetivos.';
+                    objetivosUnidad.append(mensaje);
+                    return;
+                }
+                unidad.objetivos.forEach(objetivo => {
+                    const tarjeta = document.createElement('article');
+                    const codigo = document.createElement('strong');
+                    const descripcion = document.createElement('p');
+                    codigo.textContent = objetivo.codigo;
+                    descripcion.textContent = objetivo.descripcion;
+                    tarjeta.append(codigo, descripcion);
+                    objetivosUnidad.append(tarjeta);
+                });
+            };
+
+            const aplicarTemaLibro = (selector, limpiarTemaLibre = false) => {
+                const periodo = selector.dataset.period;
+                const unidad = unidadActual();
+                const temaLibro = unidad?.temas.find(tema => String(tema.id) === selector.value && tema.disponible);
+                const { destreza, indicador } = controles(periodo);
+                const campoTema = document.getElementById(`periodos_${periodo}_tema`);
+
+                destreza.dataset.topicLocked = temaLibro ? 'true' : 'false';
+                indicador.dataset.topicLocked = temaLibro ? 'true' : 'false';
+                campoTema.readOnly = Boolean(temaLibro);
+
+                if (temaLibro) {
+                    campoTema.value = temaLibro.titulo;
+                    destreza.value = String(temaLibro.destreza_curricular_id);
+                    destreza.dispatchEvent(new Event('change', { bubbles: true }));
+                    indicador.value = String(temaLibro.indicador_evaluacion_id);
+                    indicador.dispatchEvent(new Event('change', { bubbles: true }));
+                } else if (limpiarTemaLibre) {
+                    campoTema.value = '';
+                    destreza.value = '';
+                    destreza.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                selectoresCatalogo.get(destreza)?.reconstruir();
+                selectoresCatalogo.get(indicador)?.reconstruir();
+            };
+
+            const cargarTemasUnidad = (limpiarSeleccion = false) => {
+                const unidad = unidadActual();
+                document.querySelectorAll('.book-topic-select').forEach(selector => {
+                    const seleccionAnterior = limpiarSeleccion ? '' : selector.dataset.selected || selector.value;
+                    selector.replaceChildren(new Option('Tema libre del docente', ''));
+                    unidad?.temas.forEach(tema => {
+                        const sufijo = tema.disponible ? '' : ' · Pendiente de catálogo';
+                        const opcion = new Option(`${tema.etiqueta} · ${tema.titulo}${sufijo}`, tema.id);
+                        opcion.disabled = !tema.disponible;
+                        selector.append(opcion);
+                    });
+                    selector.value = [...selector.options].some(opcion => opcion.value === String(seleccionAnterior) && !opcion.disabled)
+                        ? String(seleccionAnterior)
+                        : '';
+                    selector.dataset.selected = selector.value;
+                    aplicarTemaLibro(selector, limpiarSeleccion);
+                });
+            };
+
+            document.querySelectorAll('.book-topic-select').forEach(selector => {
+                selector.addEventListener('change', () => {
+                    selector.dataset.selected = selector.value;
+                    aplicarTemaLibro(selector, true);
+                });
+            });
+
+            if (selectorUnidad) {
+                selectorUnidad.addEventListener('change', () => {
+                    const unidad = unidadActual();
+                    if (tituloUnidad) tituloUnidad.value = unidad?.titulo || '';
+                    mostrarObjetivosUnidad(unidad);
+                    cargarTemasUnidad(true);
+                });
+                mostrarObjetivosUnidad(unidadActual());
+                cargarTemasUnidad(false);
+            }
+
+            document.addEventListener('click', evento => {
+                if (!evento.target.closest('.planning-catalog-select')) {
+                    selectoresCatalogo.forEach(selector => selector.cerrar());
+                }
+            });
+            document.addEventListener('keydown', evento => {
+                if (evento.key === 'Escape') selectoresCatalogo.forEach(selector => selector.cerrar());
+            });
+
+            document.querySelectorAll('.planning-ai-button').forEach(boton => {
+                boton.addEventListener('click', async () => {
+                    const asistente = boton.closest('.planning-ai-assistant');
+                    const periodo = asistente.dataset.period;
+                    const { destreza, indicador } = controles(periodo);
+                    const estado = asistente.querySelector('.planning-ai-status');
+                    const campos = camposGenerados.map(campo => document.getElementById(
+                        `periodos_${periodo}_${campo}`));
+
+                    if (campos.some(campo => campo?.value.trim()) && !window.confirm(
+                            'Este bloque ya contiene información. ¿Deseas reemplazarla con una nueva propuesta de la IA?')) {
+                        return;
+                    }
+
+                    boton.classList.add('is-loading');
+                    boton.disabled = true;
+                    boton.textContent = 'Generando propuesta…';
+                    estado.hidden = false;
+                    estado.className = 'planning-ai-status';
+                    estado.textContent = 'Ollama está preparando el período. Puede tardar un momento.';
+
+                    try {
+                        const respuesta = await fetch(boton.dataset.endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf
+                            },
+                            body: JSON.stringify({
+                                asignacion_id: asignacionId,
+                                destreza_curricular_id: Number(destreza.value),
+                                indicador_evaluacion_id: Number(indicador.value),
+                                duracion_minutos: Number(boton.dataset.duration),
+                                titulo_unidad: document.getElementById('titulo_unidad')?.value || null
+                            })
+                        });
+                        const datos = await respuesta.json().catch(() => ({}));
+                        if (!respuesta.ok) {
+                            const primerError = Object.values(datos.errors || {}).flat()[0];
+                            throw new Error(primerError || datos.message || 'No se pudo generar la propuesta.');
+                        }
+
+                        camposGenerados.forEach(campo => {
+                            const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
+                            if (entrada && typeof datos.propuesta?.[campo] === 'string') {
+                                entrada.value = datos.propuesta[campo];
+                                entrada.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        });
+                        estado.classList.add('is-success');
+                        estado.textContent = datos.message;
+                    } catch (error) {
+                        estado.classList.add('is-error');
+                        estado.textContent = error.message || 'No se pudo generar la propuesta.';
+                    } finally {
+                        boton.classList.remove('is-loading');
+                        boton.textContent = 'Generar otra propuesta';
+                        actualizarBotonIa(periodo);
+                    }
                 });
             });
         })();

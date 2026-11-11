@@ -37,10 +37,10 @@ class SeguimientoCurricularController extends Controller
         $usosIndicadores = collect();
 
         if ($seleccion) {
-            $destrezas = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta
-                ->where('indicadores_evaluacion.activo', true)->orderBy('grupo')->orderBy('codigo'), 'indicadores.competencias'])
+            $destrezas = DestrezaCurricular::with(['curriculo', 'competencias', 'indicadores' => fn ($consulta) => $consulta
+                ->where('indicadores_evaluacion.activo', true)->orderBy('curriculo_id')->orderBy('grupo')->orderBy('codigo'), 'indicadores.curriculo', 'indicadores.competencias'])
                 ->where('materia_id', $seleccion['materia_id'])->where('grado', $seleccion['grado'])
-                ->where('activo', true)->orderBy('grupo')->orderBy('codigo')->get();
+                ->where('activo', true)->orderBy('curriculo_id')->orderBy('grupo')->orderBy('codigo')->get();
             $usosDestrezas = $this->conteos($request, $seleccion, 'destreza_curricular_id');
             $usosIndicadores = $this->conteos($request, $seleccion, 'indicador_evaluacion_id');
         }

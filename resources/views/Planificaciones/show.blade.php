@@ -148,9 +148,9 @@
                                 <div class="planning-text-block">
                                     <h4>{{ $etiqueta }}
                                         @if($campo === 'destrezas_criterios_desempeno' && $periodo->destrezaCurricular)
-                                            · {{ $periodo->destrezaCurricular->codigo }}@if($periodo->destrezaCurricular->competencias->isNotEmpty()) · {{ $periodo->destrezaCurricular->competencias->pluck('codigo')->implode(', ') }}@endif
+                                            · {{ $periodo->destrezaCurricular->codigo }} · {{ $periodo->destrezaCurricular->curriculo->nombre }}@if($periodo->destrezaCurricular->competencias->isNotEmpty()) · {{ $periodo->destrezaCurricular->competencias->pluck('codigo')->implode(', ') }}@endif
                                         @elseif($campo === 'indicadores_evaluacion' && $periodo->indicadorEvaluacion)
-                                            · {{ $periodo->indicadorEvaluacion->codigo }}@if($periodo->indicadorEvaluacion->competencias->isNotEmpty()) · {{ $periodo->indicadorEvaluacion->competencias->pluck('codigo')->implode(', ') }}@endif
+                                            · {{ $periodo->indicadorEvaluacion->codigo }} · {{ $periodo->indicadorEvaluacion->curriculo->nombre }}@if($periodo->indicadorEvaluacion->competencias->isNotEmpty()) · {{ $periodo->indicadorEvaluacion->competencias->pluck('codigo')->implode(', ') }}@endif
                                         @endif
                                     </h4>
                                     <p>{{ $periodo->{$campo} ?: '—' }}</p>

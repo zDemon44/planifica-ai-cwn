@@ -11,6 +11,7 @@ use App\Models\IndicadorEvaluacion;
 use App\Models\ObjetivoCurricular;
 use App\Models\PeriodoAcademico;
 use App\Models\Planificacion;
+use App\Models\UnidadLibro;
 use App\Services\CalendarioPlanificaciones;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -134,6 +135,7 @@ class PlanificacionController extends Controller
                 ...$periodo->only(['orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana', 'fecha_clase', 'hora_inicio', 'hora_fin']),
                 'dia' => $periodo->dia_semana ? Horario::DIAS[$periodo->dia_semana] : 'Horario anterior',
                 ...$periodo->only([
+                    'tema_libro_id',
                     'destreza_curricular_id', 'indicador_evaluacion_id',
                     'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
                     'tema', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
@@ -154,33 +156,68 @@ class PlanificacionController extends Controller
         ))->filter()->map(fn ($id): int => (int) $id)->values();
         $destrezasCurriculares = collect();
         $indicadoresPorDestreza = [];
+        $unidadesLibro = collect();
+        $catalogoUnidades = [];
         if ($asignacionSeleccionada) {
             $objetivosCurriculares = ObjetivoCurricular::where('materia_id', $asignacionSeleccionada->materia_id)
                 ->where('subnivel', $asignacionSeleccionada->seccion->curso->subnivel)
                 ->where('activo', true)->orderBy('codigo')->get();
         }
         if ($asignacionSeleccionada && $grado) {
-            $destrezasCurriculares = DestrezaCurricular::with(['competencias', 'indicadores' => fn ($consulta) => $consulta
-                ->where('indicadores_evaluacion.activo', true)->orderBy('codigo'), 'indicadores.competencias'])
+            $destrezasCurriculares = DestrezaCurricular::with(['curriculo', 'competencias', 'indicadores' => fn ($consulta) => $consulta
+                ->where('indicadores_evaluacion.activo', true)->orderBy('curriculo_id')->orderBy('codigo'), 'indicadores.curriculo', 'indicadores.competencias'])
                 ->where('materia_id', $asignacionSeleccionada->materia_id)
-                ->where('grado', $grado)->where('activo', true)->orderBy('grupo')->orderBy('codigo')->get();
+                ->where('grado', $grado)->where('activo', true)
+                ->orderBy('curriculo_id')->orderBy('grupo')->orderBy('codigo')->get();
             $indicadoresPorDestreza = $destrezasCurriculares->mapWithKeys(fn (DestrezaCurricular $destreza): array => [
                 $destreza->id => $destreza->indicadores->map(fn (IndicadorEvaluacion $indicador): array => [
                     'id' => $indicador->id,
                     'codigo' => $indicador->codigo,
                     'descripcion' => $indicador->descripcion,
+                    'curriculo' => $indicador->curriculo->nombre,
                     'competencias' => $indicador->competencias->pluck('codigo')->values()->all(),
                 ])->values()->all(),
             ])->all();
+
+            $unidadesLibro = UnidadLibro::query()
+                ->with([
+                    'libroTexto:id,titulo',
+                    'objetivos' => fn ($consulta) => $consulta->where('activo', true)->orderBy('codigo'),
+                    'temas' => fn ($consulta) => $consulta->where('activo', true)->orderBy('orden'),
+                ])
+                ->where('activo', true)
+                ->whereHas('libroTexto', fn ($consulta) => $consulta
+                    ->where('materia_id', $asignacionSeleccionada->materia_id)
+                    ->where('grado', $grado)
+                    ->where('activo', true))
+                ->orderBy('libro_texto_id')
+                ->orderBy('numero')
+                ->get();
+            $catalogoUnidades = $unidadesLibro->mapWithKeys(fn (UnidadLibro $unidad): array => [
+                $unidad->id => [
+                    'id' => $unidad->id,
+                    'numero' => $unidad->numero,
+                    'titulo' => $unidad->titulo,
+                    'objetivos' => $unidad->objetivos->map->only(['id', 'codigo', 'descripcion'])->values()->all(),
+                    'temas' => $unidad->temas->map(fn ($tema): array => [
+                        'id' => $tema->id,
+                        'etiqueta' => $tema->etiqueta,
+                        'titulo' => $tema->titulo,
+                        'destreza_curricular_id' => $tema->destreza_curricular_id,
+                        'indicador_evaluacion_id' => $tema->indicador_evaluacion_id,
+                        'disponible' => (bool) ($tema->destreza_curricular_id && $tema->indicador_evaluacion_id),
+                    ])->values()->all(),
+                ],
+            ])->all();
         }
 
-        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'objetivosCurriculares', 'objetivosSeleccionados', 'destrezasCurriculares', 'indicadoresPorDestreza', 'semanaSeleccionada'));
+        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'objetivosCurriculares', 'objetivosSeleccionados', 'destrezasCurriculares', 'indicadoresPorDestreza', 'unidadesLibro', 'catalogoUnidades', 'semanaSeleccionada'));
     }
 
     public function show(Planificacion $planificacion): View
     {
         Gate::authorize('view', $planificacion);
-        $planificacion->load(['asignacion.docente', 'asignacion.materia', 'asignacion.seccion.curso', 'asignacion.seccion.periodo', 'periodos.destrezaCurricular.competencias', 'periodos.indicadorEvaluacion.competencias', 'revisor', 'aprobador']);
+        $planificacion->load(['asignacion.docente', 'asignacion.materia', 'asignacion.seccion.curso', 'asignacion.seccion.periodo', 'periodos.destrezaCurricular.curriculo', 'periodos.destrezaCurricular.competencias', 'periodos.indicadorEvaluacion.curriculo', 'periodos.indicadorEvaluacion.competencias', 'revisor', 'aprobador']);
 
         return view('Planificaciones.show', compact('planificacion'));
     }
@@ -193,12 +230,19 @@ class PlanificacionController extends Controller
         $planificacion = DB::transaction(function () use ($datos, $contenidos, $objetivoIds, $request): Planificacion {
             $asignacion = Asignacion::with(['seccion.periodo', 'seccion.curso'])->findOrFail($datos['asignacion_id']);
             $this->validarContexto($asignacion, $datos, $request);
-            [$objetivoIds, $objetivosTexto] = $this->prepararObjetivosCurriculares($asignacion, $objetivoIds);
-            $contenidos = $this->prepararSeleccionesCurriculares($asignacion->load('seccion.curso'), $contenidos);
+            [$unidadLibro, $objetivoIds, $objetivosTexto, $tituloUnidad] = $this->prepararUnidadLibro(
+                $asignacion,
+                isset($datos['unidad_libro_id']) ? (int) $datos['unidad_libro_id'] : null,
+                $objetivoIds,
+                $datos['titulo_unidad'] ?? null,
+            );
+            $contenidos = $this->prepararSeleccionesCurriculares($asignacion->load('seccion.curso'), $contenidos, $unidadLibro);
             $periodos = $this->construirPeriodos->handle($asignacion, $datos['fecha_inicio']);
             $this->validarCantidadPeriodos($periodos->count(), $contenidos);
             $datos['numero_periodos'] = $periodos->sum(fn (array $periodo): int => $periodo['numero_fin'] - $periodo['numero_inicio'] + 1);
             $datos['objetivos_aprendizaje'] = $objetivosTexto;
+            $datos['unidad_libro_id'] = $unidadLibro?->id;
+            $datos['titulo_unidad'] = $tituloUnidad;
             $planificacion = Planificacion::create($datos);
             $planificacion->objetivosCurriculares()->sync($objetivoIds);
             $planificacion->periodos()->createMany($periodos->values()->map(
@@ -224,9 +268,16 @@ class PlanificacionController extends Controller
                 throw ValidationException::withMessages(['asignacion_id' => 'La asignación de una planificación ya creada no se puede cambiar.']);
             }
             $this->validarContexto($registro->asignacion->load('seccion.periodo'), $datos, $request);
-            [$objetivoIds, $objetivosTexto] = $this->prepararObjetivosCurriculares($registro->asignacion->load('seccion.curso'), $objetivoIds);
-            $contenidos = $this->prepararSeleccionesCurriculares($registro->asignacion->load('seccion.curso'), $contenidos);
+            [$unidadLibro, $objetivoIds, $objetivosTexto, $tituloUnidad] = $this->prepararUnidadLibro(
+                $registro->asignacion->load('seccion.curso'),
+                isset($datos['unidad_libro_id']) ? (int) $datos['unidad_libro_id'] : null,
+                $objetivoIds,
+                $datos['titulo_unidad'] ?? null,
+            );
+            $contenidos = $this->prepararSeleccionesCurriculares($registro->asignacion->load('seccion.curso'), $contenidos, $unidadLibro);
             $datos['objetivos_aprendizaje'] = $objetivosTexto;
+            $datos['unidad_libro_id'] = $unidadLibro?->id;
+            $datos['titulo_unidad'] = $tituloUnidad;
             $registro->fill($datos);
             $registro->version++;
             $registro->save();
@@ -376,7 +427,7 @@ class PlanificacionController extends Controller
     /** @param array<int, array<string, mixed>> $contenidos
      * @return array<int, array<string, mixed>>
      */
-    private function prepararSeleccionesCurriculares(Asignacion $asignacion, array $contenidos): array
+    private function prepararSeleccionesCurriculares(Asignacion $asignacion, array $contenidos, ?UnidadLibro $unidadLibro = null): array
     {
         $grado = $asignacion->seccion->curso->grado;
         if (! $grado) {
@@ -384,6 +435,28 @@ class PlanificacionController extends Controller
         }
 
         foreach ($contenidos as $indice => &$contenido) {
+            $temaLibroId = isset($contenido['tema_libro_id']) ? (int) $contenido['tema_libro_id'] : 0;
+            if ($temaLibroId) {
+                $temaLibro = $unidadLibro?->temas->firstWhere('id', $temaLibroId);
+                if (! $temaLibro || ! $temaLibro->activo) {
+                    throw ValidationException::withMessages([
+                        "periodos.$indice.tema_libro_id" => 'Selecciona un tema que pertenezca a la unidad elegida.',
+                    ]);
+                }
+                if (! $temaLibro->destreza_curricular_id || ! $temaLibro->indicador_evaluacion_id) {
+                    throw ValidationException::withMessages([
+                        "periodos.$indice.tema_libro_id" => 'Este tema todavía no tiene una destreza y un indicador disponibles en el catálogo.',
+                    ]);
+                }
+
+                $contenido['tema_libro_id'] = $temaLibro->id;
+                $contenido['tema'] = $temaLibro->titulo;
+                $contenido['destreza_curricular_id'] = $temaLibro->destreza_curricular_id;
+                $contenido['indicador_evaluacion_id'] = $temaLibro->indicador_evaluacion_id;
+            } else {
+                $contenido['tema_libro_id'] = null;
+            }
+
             $destrezaId = isset($contenido['destreza_curricular_id']) ? (int) $contenido['destreza_curricular_id'] : 0;
             $indicadorId = isset($contenido['indicador_evaluacion_id']) ? (int) $contenido['indicador_evaluacion_id'] : 0;
             if (! $destrezaId && ! $indicadorId) {
@@ -409,6 +482,53 @@ class PlanificacionController extends Controller
         unset($contenido);
 
         return $contenidos;
+    }
+
+    /** @return array{0: ?UnidadLibro, 1: array<int>, 2: ?string, 3: ?string} */
+    private function prepararUnidadLibro(
+        Asignacion $asignacion,
+        ?int $unidadLibroId,
+        array $objetivoIds,
+        ?string $tituloUnidad,
+    ): array {
+        $grado = $asignacion->seccion->curso->grado;
+        $consultaUnidades = UnidadLibro::query()
+            ->where('activo', true)
+            ->whereHas('libroTexto', fn ($consulta) => $consulta
+                ->where('materia_id', $asignacion->materia_id)
+                ->where('grado', $grado)
+                ->where('activo', true));
+
+        if (! $unidadLibroId) {
+            if ($consultaUnidades->exists()) {
+                throw ValidationException::withMessages([
+                    'unidad_libro_id' => 'Selecciona la unidad del libro que se trabajará esta semana.',
+                ]);
+            }
+
+            [$objetivoIds, $objetivosTexto] = $this->prepararObjetivosCurriculares($asignacion, $objetivoIds);
+
+            return [null, $objetivoIds, $objetivosTexto, $tituloUnidad];
+        }
+
+        $unidadLibro = $consultaUnidades
+            ->with([
+                'objetivos' => fn ($consulta) => $consulta->where('activo', true)->orderBy('codigo'),
+                'temas' => fn ($consulta) => $consulta->where('activo', true)->orderBy('orden'),
+            ])
+            ->find($unidadLibroId);
+        if (! $unidadLibro) {
+            throw ValidationException::withMessages([
+                'unidad_libro_id' => 'La unidad seleccionada no corresponde a la materia y grado de esta planificación.',
+            ]);
+        }
+
+        $objetivos = $unidadLibro->objetivos;
+        $texto = $objetivos
+            ->map(fn (ObjetivoCurricular $objetivo): string => $objetivo->codigo.' '.$objetivo->descripcion)
+            ->implode("\n\n");
+
+        return [$unidadLibro, $objetivos->modelKeys(), $texto ?: null, $unidadLibro->titulo];
     }
 
     /** @return array{0: array<int>, 1: ?string} */

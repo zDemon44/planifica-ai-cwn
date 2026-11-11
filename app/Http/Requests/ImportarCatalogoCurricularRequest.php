@@ -16,6 +16,7 @@ class ImportarCatalogoCurricularRequest extends FormRequest
     {
         return [
             'materia_id' => ['required', 'integer', 'exists:materias,id'],
+            'curriculo_id' => ['required', 'integer', 'exists:curriculos,id'],
             'archivo' => ['required', 'file', 'mimes:xlsx', 'max:5120'],
         ];
     }
@@ -27,6 +28,7 @@ class ImportarCatalogoCurricularRequest extends FormRequest
             'archivo.mimes' => 'El catálogo debe estar en formato .xlsx.',
             'archivo.max' => 'El archivo no puede superar 5 MB.',
             'materia_id.required' => 'Selecciona la materia del catálogo.',
+            'curriculo_id.required' => 'Selecciona el currículo de origen.',
         ];
     }
 }

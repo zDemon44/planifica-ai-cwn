@@ -26,6 +26,7 @@ class GuardarPlanificacionRequest extends FormRequest
 
         return [
             'asignacion_id' => ['required', 'integer', 'exists:asignaciones,id'],
+            'unidad_libro_id' => ['nullable', 'integer', 'exists:unidades_libro,id'],
             'trimestre' => ['required', 'integer', 'between:1,3'],
             'titulo_unidad' => ['nullable', 'string', 'max:255'],
             'jornada' => ['required', Rule::in(['matutina', 'vespertina'])],
@@ -40,6 +41,7 @@ class GuardarPlanificacionRequest extends FormRequest
             'objetivos_aprendizaje' => ['prohibited'],
             'periodos' => ['required', 'array', 'min:1', 'max:40'],
             'periodos.*' => ['required', 'array'],
+            'periodos.*.tema_libro_id' => ['nullable', 'integer', 'exists:temas_libro,id'],
             'periodos.*.destreza_curricular_id' => ['nullable', 'integer', 'exists:destrezas_curriculares,id'],
             'periodos.*.indicador_evaluacion_id' => ['nullable', 'integer', 'exists:indicadores_evaluacion,id'],
             'periodos.*.destrezas_criterios_desempeno' => ['prohibited'],
@@ -85,6 +87,8 @@ class GuardarPlanificacionRequest extends FormRequest
         return [
             'required' => 'Completa este campo.',
             'exists' => 'Selecciona una asignación válida.',
+            'unidad_libro_id.exists' => 'Selecciona una unidad válida para esta planificación.',
+            'periodos.*.tema_libro_id.exists' => 'Selecciona un tema válido del libro.',
             'numero_semana.unique' => 'Ya existe una planificación para esta asignación y semana.',
             'fecha_fin.after_or_equal' => 'La fecha final debe ser igual o posterior a la inicial.',
             'periodos.required' => 'La materia debe tener períodos configurados en su horario.',
@@ -97,6 +101,8 @@ class GuardarPlanificacionRequest extends FormRequest
         return [
             'objetivo_curricular_ids' => 'objetivos de aprendizaje',
             'objetivo_curricular_ids.*' => 'objetivo de aprendizaje',
+            'unidad_libro_id' => 'unidad del libro',
+            'periodos.*.tema_libro_id' => 'tema del libro',
             'periodos.*.destreza_curricular_id' => 'destreza con criterios de desempeño',
             'periodos.*.indicador_evaluacion_id' => 'indicador de evaluación',
             'periodos.*.recursos' => 'recursos',

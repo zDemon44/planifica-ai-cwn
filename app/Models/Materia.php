@@ -38,4 +38,9 @@ class Materia extends Model
     {
         return $this->hasMany(ObjetivoCurricular::class);
     }
+
+    public function librosTexto(): HasMany
+    {
+        return $this->hasMany(LibroTexto::class);
+    }
 }

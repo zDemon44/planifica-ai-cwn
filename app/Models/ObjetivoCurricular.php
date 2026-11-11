@@ -26,4 +26,9 @@ class ObjetivoCurricular extends Model
     {
         return $this->belongsToMany(Planificacion::class, 'objetivo_planificacion');
     }
+
+    public function unidadesLibro(): BelongsToMany
+    {
+        return $this->belongsToMany(UnidadLibro::class, 'objetivo_unidad_libro');
+    }
 }

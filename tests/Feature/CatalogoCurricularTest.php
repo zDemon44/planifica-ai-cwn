@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Curriculo;
 use App\Models\DestrezaCurricular;
 use App\Models\Docente;
 use App\Models\IndicadorEvaluacion;
@@ -29,15 +30,16 @@ class CatalogoCurricularTest extends TestCase
     public function test_importa_los_grupos_y_relaciones_del_archivo_institucional(): void
     {
         $materia = Materia::factory()->create(['nombre' => 'Lengua y Literatura']);
+        $curriculo = Curriculo::where('codigo', Curriculo::CODIGO_VIGENTE)->sole();
         $resultado = app(ImportarCatalogoCurricularExcel::class)
-            ->handle($materia, base_path('Lengua y literatura DCD y IC.xlsx'));
+            ->handle($materia, $curriculo, base_path('Lengua y literatura DCD y IC.xlsx'));
 
         $this->assertSame(69, $resultado['destrezas']);
         $this->assertSame(54, $resultado['indicadores']);
         $this->assertSame(138, $resultado['relaciones']);
         $this->assertGreaterThan(0, $resultado['competencias']);
-        $this->assertDatabaseHas('destrezas_curriculares', ['materia_id' => $materia->id, 'grado' => 2, 'grupo' => 1, 'activo' => true]);
-        $this->assertDatabaseHas('indicadores_evaluacion', ['materia_id' => $materia->id, 'grado' => 4, 'grupo' => 11, 'activo' => true]);
+        $this->assertDatabaseHas('destrezas_curriculares', ['materia_id' => $materia->id, 'curriculo_id' => $curriculo->id, 'grado' => 2, 'grupo' => 1, 'activo' => true]);
+        $this->assertDatabaseHas('indicadores_evaluacion', ['materia_id' => $materia->id, 'curriculo_id' => $curriculo->id, 'grado' => 4, 'grupo' => 11, 'activo' => true]);
 
         $destreza = DestrezaCurricular::where('materia_id', $materia->id)->where('grado', 4)->where('grupo', 3)->firstOrFail();
         $this->assertCount(2, $destreza->indicadores);
@@ -47,11 +49,12 @@ class CatalogoCurricularTest extends TestCase
     public function test_admin_puede_subir_el_excel_y_consultar_un_grado(): void
     {
         $materia = Materia::factory()->create(['nombre' => 'Lengua y Literatura']);
+        $curriculo = Curriculo::where('codigo', Curriculo::CODIGO_VIGENTE)->sole();
         $archivo = UploadedFile::fake()->createWithContent('catalogo.xlsx', file_get_contents(base_path('Lengua y literatura DCD y IC.xlsx')));
 
         $this->actingAs(User::factory()->create(['role' => 'ADMIN']))
-            ->post(route('catalogo-curricular.importar'), ['materia_id' => $materia->id, 'archivo' => $archivo])
-            ->assertSessionHasNoErrors()->assertRedirect(route('catalogo-curricular.index', ['materia_id' => $materia->id, 'grado' => 4]));
+            ->post(route('catalogo-curricular.importar'), ['materia_id' => $materia->id, 'curriculo_id' => $curriculo->id, 'archivo' => $archivo])
+            ->assertSessionHasNoErrors()->assertRedirect(route('catalogo-curricular.index', ['materia_id' => $materia->id, 'curriculo_id' => $curriculo->id, 'grado' => 4]));
 
         $this->get(route('catalogo-curricular.index', ['materia_id' => $materia->id, 'grado' => 2]))
             ->assertOk()->assertSee('Grupo 1')->assertSee('2.º grado');
@@ -60,14 +63,92 @@ class CatalogoCurricularTest extends TestCase
     public function test_importa_matematica_y_conserva_varias_competencias_por_destreza(): void
     {
         $materia = Materia::factory()->create(['nombre' => 'Matemática']);
+        $curriculo = Curriculo::where('codigo', Curriculo::CODIGO_VIGENTE)->sole();
         $resultado = app(ImportarCatalogoCurricularExcel::class)
-            ->handle($materia, base_path('Matematicas_destrezas_e_indicadores_corregidos.xlsx'));
+            ->handle($materia, $curriculo, base_path('Matematicas_destrezas_e_indicadores_corregidos.xlsx'));
 
         $this->assertSame(120, $resultado['destrezas']);
         $this->assertSame(54, $resultado['indicadores']);
         $destreza = DestrezaCurricular::with('competencias')->where('materia_id', $materia->id)
             ->where('grado', 4)->where('codigo', 'M.2.1.24')->sole();
         $this->assertEqualsCanonicalizing(['CM', 'C', 'CS', 'EV', 'ES'], $destreza->competencias->pluck('codigo')->all());
+        $this->assertSame(
+            [2, 3, 4],
+            IndicadorEvaluacion::where('materia_id', $materia->id)
+                ->where('curriculo_id', $curriculo->id)
+                ->where('codigo', 'Ref.I.M.2.2.4')->orderBy('grado')->pluck('grado')->all()
+        );
+    }
+
+    public function test_importa_el_curriculo_anterior_sin_confundir_codigos_originales_con_referencias(): void
+    {
+        $materia = Materia::factory()->create(['nombre' => 'Matemática']);
+        $curriculoVigente = Curriculo::where('codigo', Curriculo::CODIGO_VIGENTE)->sole();
+        $curriculo = Curriculo::where('codigo', Curriculo::CODIGO_ANTERIOR)->sole();
+
+        app(ImportarCatalogoCurricularExcel::class)->handle(
+            $materia,
+            $curriculoVigente,
+            base_path('Matematicas_destrezas_e_indicadores_corregidos.xlsx')
+        );
+
+        $resultado = app(ImportarCatalogoCurricularExcel::class)->handle(
+            $materia,
+            $curriculo,
+            base_path('outputs/curriculo-faltantes-desagregados/Matematicas_destrezas_e_indicadores_Faltantes_desagregados.xlsx')
+        );
+
+        $this->assertSame(33, $resultado['destrezas']);
+        $this->assertSame(24, $resultado['indicadores']);
+        $this->assertSame(264, $resultado['relaciones']);
+        $this->assertSame(
+            [2, 3, 4],
+            IndicadorEvaluacion::where('materia_id', $materia->id)
+                ->where('curriculo_id', $curriculo->id)
+                ->where('codigo', 'I.M.2.2.4')->orderBy('grado')->pluck('grado')->all()
+        );
+        $this->assertDatabaseHas('indicadores_evaluacion', [
+            'materia_id' => $materia->id,
+            'curriculo_id' => $curriculo->id,
+            'grado' => 4,
+            'codigo' => 'I.M.2.5.3',
+        ]);
+
+        $destrezaAntesGrupoCero = DestrezaCurricular::with('indicadores')->where([
+            'materia_id' => $materia->id,
+            'curriculo_id' => $curriculo->id,
+            'grado' => 4,
+            'codigo' => 'M.2.1.8',
+        ])->sole();
+        $this->assertSame(1, $destrezaAntesGrupoCero->grupo);
+        $this->assertCount(8, $destrezaAntesGrupoCero->indicadores);
+        $this->assertCount(3, $destrezaAntesGrupoCero->indicadores->where('curriculo_id', $curriculo->id));
+        $this->assertCount(5, $destrezaAntesGrupoCero->indicadores->where('curriculo_id', $curriculoVigente->id));
+
+        $destrezaGrupoDos = DestrezaCurricular::with('indicadores')->where([
+            'materia_id' => $materia->id,
+            'curriculo_id' => $curriculo->id,
+            'grado' => 4,
+            'codigo' => 'M.2.2.8',
+        ])->sole();
+        $this->assertCount(4, $destrezaGrupoDos->indicadores);
+        $this->assertTrue($destrezaGrupoDos->indicadores->every(
+            fn (IndicadorEvaluacion $indicador): bool => $indicador->curriculo_id === $curriculoVigente->id
+                && $indicador->grado === 4
+                && $indicador->grupo === 2
+        ));
+
+        $relacionesConCurriculoVigente = DestrezaCurricular::query()
+            ->where('materia_id', $materia->id)
+            ->where('curriculo_id', $curriculo->id)
+            ->whereIn('grupo', [1, 3, 4])
+            ->withCount(['indicadores as indicadores_vigentes_count' => fn ($consulta) => $consulta
+                ->where('curriculo_id', $curriculoVigente->id)])
+            ->get();
+        $this->assertSame(156, $relacionesConCurriculoVigente->sum('indicadores_vigentes_count'));
+        $this->assertTrue($relacionesConCurriculoVigente->every(
+            fn (DestrezaCurricular $destreza): bool => $destreza->indicadores_vigentes_count > 0
+        ));
     }
 
     public function test_admin_consulta_objetivos_compartidos_por_subnivel(): void
