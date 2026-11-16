@@ -37,9 +37,9 @@ return [
 
     'ollama' => [
         'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434'),
-        'model' => env('OLLAMA_MODEL', 'qwen2.5:3b'),
+        'model' => env('OLLAMA_MODEL', 'qwen3.5:9b'),
         'connect_timeout' => (int) env('OLLAMA_CONNECT_TIMEOUT', 5),
-        'timeout' => (int) env('OLLAMA_TIMEOUT', 300),
+        'timeout' => (int) env('OLLAMA_TIMEOUT', 420),
     ],
 
 ];

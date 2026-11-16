@@ -304,6 +304,7 @@ class PlanificacionesTest extends TestCase
                 'Desarrollo ERCA',
                 'Orientaciones para la evaluación',
             ])
+            ->assertSee('Tiempo transcurrido')
             ->assertDontSee('Organiza el desarrollo del tema con las fases metodológicas del formato institucional.');
         $this->get(route('planificaciones.index', ['asignacion_id' => $ajena->id]))->assertNotFound();
         $this->get(route('planificaciones.create', ['asignacion_id' => $ajena->id]))->assertNotFound();

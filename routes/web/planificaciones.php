@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth')->group(function () {
     Route::get('/planificaciones', [PlanificacionController::class, 'index'])->name('planificaciones.index');
     Route::get('/planificaciones/create', [PlanificacionController::class, 'create'])->name('planificaciones.create');
+    Route::get('/planificaciones/asistente/token', [AsistentePlanificacionController::class, 'token'])
+        ->name('planificaciones.asistente.token');
     Route::post('/planificaciones/asistente/periodos', [AsistentePlanificacionController::class, 'store'])
         ->middleware('throttle:6,1')->name('planificaciones.asistente.periodos.store');
     Route::post('/planificaciones', [PlanificacionController::class, 'store'])->name('planificaciones.store');

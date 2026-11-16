@@ -405,17 +405,70 @@
                             @enderror
                         </div>
                         @if(auth()->user()->role === 'DOCENTE')
-                            <div class="planning-ai-assistant" data-period="{{ $indice }}">
-                                <div class="planning-ai-copy"><span aria-hidden="true">✦</span>
-                                    <div><strong>Asistente de planificación</strong>
-                                        <p>Genera una propuesta ERCA con DUA a partir de la destreza y el indicador seleccionados.</p>
+                            <div class="planning-ai-launch">
+                                <div><span aria-hidden="true">✦</span><div><strong>¿Necesitas ayuda con este período?</strong><small>El copiloto puede preparar una propuesta para que la revises.</small></div></div>
+                                <button type="button" data-ai-open="{{ $indice }}">Abrir copiloto</button>
+                            </div>
+                            <section class="planning-ai-assistant" id="planning-ai-assistant-{{ $indice }}"
+                                data-period="{{ $indice }}" role="dialog" aria-modal="true"
+                                aria-labelledby="planning-ai-title-{{ $indice }}" aria-hidden="true" inert>
+                                <header class="planning-ai-header">
+                                    <div class="planning-ai-copy"><span aria-hidden="true">✦</span>
+                                        <div><strong id="planning-ai-title-{{ $indice }}">Copiloto del período</strong>
+                                            <p>Prepara una propuesta ERCA con DUA para que la revises antes de incorporarla.</p>
+                                        </div>
+                                    </div>
+                                    <div class="planning-ai-header-actions"><span class="planning-ai-badge">IA local</span>
+                                        <button class="planning-ai-close" type="button" aria-label="Cerrar copiloto">×</button>
+                                    </div>
+                                </header>
+                                <div class="planning-ai-readiness">
+                                    <span aria-hidden="true"></span>
+                                    <div><strong class="planning-ai-readiness-title">Selecciona la destreza y el indicador</strong>
+                                        <small>{{ $bloque['duracion_minutos'] }} minutos disponibles para este bloque</small>
                                     </div>
                                 </div>
-                                <button class="planning-ai-button" type="button"
-                                    data-endpoint="{{ route('planificaciones.asistente.periodos.store') }}"
-                                    data-duration="{{ $bloque['duracion_minutos'] }}" disabled>Generar período con IA</button>
+                                <div class="field planning-ai-instructions">
+                                    <label for="periodos_{{ $indice }}_indicaciones_ia">¿Quieres orientar la propuesta? <small>Opcional</small></label>
+                                    <textarea id="periodos_{{ $indice }}_indicaciones_ia" rows="2" maxlength="600"
+                                        placeholder="Ej.: utiliza material concreto, trabajo en parejas o actividades sin internet"></textarea>
+                                    <small>La IA respetará la selección curricular, el tema y el tiempo del período.</small>
+                                </div>
+                                <div class="planning-ai-generate">
+                                    <button class="planning-ai-button" type="button"
+                                        data-endpoint="{{ route('planificaciones.asistente.periodos.store') }}"
+                                        data-duration="{{ $bloque['duracion_minutos'] }}" disabled>
+                                        <span aria-hidden="true">✦</span><span class="planning-ai-button-label">Preparar propuesta</span>
+                                    </button>
+                                    <div class="planning-ai-timer" hidden>
+                                        <span>Tiempo transcurrido</span>
+                                        <strong>00:00</strong>
+                                    </div>
+                                    <small>La propuesta no modificará el formulario hasta que decidas aplicarla.</small>
+                                </div>
                                 <p class="planning-ai-status" role="status" aria-live="polite" hidden></p>
-                            </div>
+                                <div class="planning-ai-preview" hidden>
+                                    <header><div><span>Vista previa</span><strong data-ai-preview="tema"></strong></div>
+                                        <button class="planning-ai-discard" type="button" aria-label="Descartar propuesta">×</button>
+                                    </header>
+                                    <div class="planning-ai-preview-meta">
+                                        <article><span>Recursos</span><p data-ai-preview="recursos"></p></article>
+                                        <article><span>Evaluación</span><p><strong data-ai-preview="tecnica_evaluacion"></strong> · <span data-ai-preview="instrumento_evaluacion"></span></p></article>
+                                    </div>
+                                    <ol class="planning-ai-preview-erca">
+                                        @foreach (['experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campoIa => $etiquetaIa)
+                                            <li><span>{{ substr($etiquetaIa, 0, 1) }}</span><div><strong>{{ $etiquetaIa }}</strong><p data-ai-preview="{{ $campoIa }}"></p><small><b>DUA:</b> <span data-ai-preview="dua_{{ $campoIa }}"></span></small></div></li>
+                                        @endforeach
+                                    </ol>
+                                    <footer>
+                                        <div><strong>¿Cómo deseas incorporarla?</strong><small>Puedes proteger lo que ya escribiste o sustituir todo el contenido del período.</small></div>
+                                        <div class="planning-ai-preview-actions">
+                                            <button class="planning-ai-apply-empty" type="button">Completar campos vacíos</button>
+                                            <button class="planning-ai-apply-all" type="button">Reemplazar período</button>
+                                        </div>
+                                    </footer>
+                                </div>
+                            </section>
                         @endif
                         <div class="field planning-textarea planning-period-full"><label
                                 for="periodos_{{ $indice }}_recursos">Recursos</label>
@@ -454,7 +507,7 @@
                         </div>
                         <fieldset class="planning-evaluation-fields">
                             <legend>Orientaciones para la evaluación</legend>
-                            <p>Registra la técnica aplicada y el instrumento que permitirá recoger la evidencia.</p>
+                            <p>Registra el método de evaluación y deja el instrumento completo con sus criterios, niveles o preguntas.</p>
                             <div class="field planning-textarea">
                                 <label for="periodos_{{ $indice }}_tecnica_evaluacion">Técnica</label>
                                 <textarea id="periodos_{{ $indice }}_tecnica_evaluacion"
@@ -467,8 +520,8 @@
                             <div class="field planning-textarea">
                                 <label for="periodos_{{ $indice }}_instrumento_evaluacion">Instrumento</label>
                                 <textarea id="periodos_{{ $indice }}_instrumento_evaluacion"
-                                    name="periodos[{{ $indice }}][instrumento_evaluacion]" rows="3"
-                                    placeholder="Ej.: lista de cotejo, rúbrica, cuestionario">{{ old("periodos.$indice.instrumento_evaluacion", $bloque['instrumento_evaluacion'] ?? '') }}</textarea>
+                                    name="periodos[{{ $indice }}][instrumento_evaluacion]" rows="6"
+                                    placeholder="Ej.: lista de cotejo con escala y criterios observables; rúbrica con niveles; o cuestionario con sus preguntas">{{ old("periodos.$indice.instrumento_evaluacion", $bloque['instrumento_evaluacion'] ?? '') }}</textarea>
                                 @error("periodos.$indice.instrumento_evaluacion")
                                     <small class="field-error">{{ $message }}</small>
                                 @enderror
@@ -508,6 +561,9 @@
         <div class="form-actions"><a class="secondary-button" href="{{ $rutaListado }}">Cancelar</a><button
                 class="primary-button" type="submit" @disabled(!$asignacionSeleccionada || $bloquesPlanificacion->isEmpty())>Guardar borrador</button></div>
     </form>
+    @if(auth()->user()->role === 'DOCENTE')
+        <button class="planning-ai-backdrop" type="button" aria-label="Cerrar copiloto" hidden></button>
+    @endif
 
     @if (!$planificacion->exists && !$asignacionSeleccionada)
         <script>
@@ -554,14 +610,32 @@
         (() => {
             const relacionados = @json($indicadoresPorDestreza);
             const unidadesLibro = @json($catalogoUnidades);
-            const csrf = document.querySelector('.planning-form input[name="_token"]')?.value;
+            let csrf = document.querySelector('meta[name="csrf-token"]')?.content
+                || document.querySelector('.planning-form input[name="_token"]')?.value;
+            const csrfEndpoint = @json(route('planificaciones.asistente.token'));
             const asignacionId = {{ (int) ($asignacionSeleccionada?->id ?? 0) }};
             const selectoresCatalogo = new Map();
+            let generacionIaActiva = false;
             const camposGenerados = [
                 'tema', 'recursos', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
                 'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
                 'tecnica_evaluacion', 'instrumento_evaluacion'
             ];
+
+            const actualizarCsrf = async () => {
+                const respuesta = await fetch(csrfEndpoint, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                if (!respuesta.ok || respuesta.redirected) return false;
+                const datos = await respuesta.json().catch(() => ({}));
+                if (typeof datos.token !== 'string' || !datos.token) return false;
+
+                csrf = datos.token;
+                document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', csrf);
+                document.querySelectorAll('input[name="_token"]').forEach(campo => campo.value = csrf);
+                return true;
+            };
 
             const controles = periodo => ({
                 destreza: document.getElementById(`periodos_${periodo}_destreza`),
@@ -572,9 +646,25 @@
             const actualizarBotonIa = periodo => {
                 const { destreza, indicador, asistente } = controles(periodo);
                 const boton = asistente?.querySelector('.planning-ai-button');
+                const listo = Boolean(destreza?.value && indicador?.value);
                 if (boton && !boton.classList.contains('is-loading')) {
-                    boton.disabled = !destreza?.value || !indicador?.value;
+                    boton.disabled = !listo || generacionIaActiva;
                 }
+                const preparacion = asistente?.querySelector('.planning-ai-readiness');
+                const titulo = asistente?.querySelector('.planning-ai-readiness-title');
+                if (preparacion && titulo) {
+                    preparacion.classList.toggle('is-ready', listo);
+                    titulo.textContent = listo
+                        ? 'Contexto curricular listo para generar'
+                        : 'Selecciona la destreza y el indicador';
+                }
+            };
+
+            const descartarPropuesta = asistente => {
+                if (!asistente) return;
+                asistente.propuestaIa = null;
+                const vistaPrevia = asistente.querySelector('.planning-ai-preview');
+                if (vistaPrevia) vistaPrevia.hidden = true;
             };
 
             const descripcionSinCodigo = item => {
@@ -674,6 +764,7 @@
 
             document.querySelectorAll('.curriculum-skill-select').forEach(destreza => {
                 destreza.addEventListener('change', () => {
+                    descartarPropuesta(controles(destreza.dataset.period).asistente);
                     const indicador = document.getElementById(
                         `periodos_${destreza.dataset.period}_indicador`);
                     const opciones = relacionados[destreza.value] || [];
@@ -695,7 +786,10 @@
                     actualizarBotonIa(destreza.dataset.period);
                 });
                 const indicador = document.getElementById(`periodos_${destreza.dataset.period}_indicador`);
-                indicador?.addEventListener('change', () => actualizarBotonIa(destreza.dataset.period));
+                indicador?.addEventListener('change', () => {
+                    descartarPropuesta(controles(destreza.dataset.period).asistente);
+                    actualizarBotonIa(destreza.dataset.period);
+                });
                 actualizarBotonIa(destreza.dataset.period);
             });
 
@@ -793,75 +887,213 @@
                 cargarTemasUnidad(false);
             }
 
+            const fondoAsistente = document.querySelector('.planning-ai-backdrop');
+            let activadorAsistente = null;
+
+            const cerrarAsistente = (devolverFoco = true) => {
+                const abierto = document.querySelector('.planning-ai-assistant.is-open');
+                if (!abierto) return;
+                abierto.classList.remove('is-open');
+                abierto.setAttribute('aria-hidden', 'true');
+                abierto.inert = true;
+                if (fondoAsistente) fondoAsistente.hidden = true;
+                if (devolverFoco) activadorAsistente?.focus();
+                activadorAsistente = null;
+            };
+
+            document.querySelectorAll('[data-ai-open]').forEach(activador => {
+                activador.addEventListener('click', () => {
+                    cerrarAsistente(false);
+                    const asistente = document.querySelector(
+                        `.planning-ai-assistant[data-period="${activador.dataset.aiOpen}"]`);
+                    if (!asistente) return;
+                    activadorAsistente = activador;
+                    asistente.inert = false;
+                    asistente.setAttribute('aria-hidden', 'false');
+                    asistente.classList.add('is-open');
+                    if (fondoAsistente) fondoAsistente.hidden = false;
+                    asistente.querySelector('.planning-ai-close')?.focus();
+                });
+            });
+
+            document.querySelectorAll('.planning-ai-close').forEach(boton => {
+                boton.addEventListener('click', () => cerrarAsistente());
+            });
+            fondoAsistente?.addEventListener('click', () => cerrarAsistente());
+
             document.addEventListener('click', evento => {
                 if (!evento.target.closest('.planning-catalog-select')) {
                     selectoresCatalogo.forEach(selector => selector.cerrar());
                 }
             });
             document.addEventListener('keydown', evento => {
-                if (evento.key === 'Escape') selectoresCatalogo.forEach(selector => selector.cerrar());
+                if (evento.key === 'Escape') {
+                    selectoresCatalogo.forEach(selector => selector.cerrar());
+                    cerrarAsistente();
+                }
+                if (evento.key === 'Tab') {
+                    const abierto = document.querySelector('.planning-ai-assistant.is-open');
+                    if (!abierto) return;
+                    const elementos = [...abierto.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')]
+                        .filter(elemento => elemento.getClientRects().length > 0);
+                    const primero = elementos[0];
+                    const ultimo = elementos[elementos.length - 1];
+                    if (evento.shiftKey && document.activeElement === primero) {
+                        evento.preventDefault();
+                        ultimo?.focus();
+                    } else if (!evento.shiftKey && document.activeElement === ultimo) {
+                        evento.preventDefault();
+                        primero?.focus();
+                    }
+                }
             });
 
             document.querySelectorAll('.planning-ai-button').forEach(boton => {
                 boton.addEventListener('click', async () => {
+                    if (generacionIaActiva) return;
+                    generacionIaActiva = true;
+                    document.querySelectorAll('.planning-ai-button').forEach(candidato => candidato.disabled = true);
                     const asistente = boton.closest('.planning-ai-assistant');
                     const periodo = asistente.dataset.period;
                     const { destreza, indicador } = controles(periodo);
                     const estado = asistente.querySelector('.planning-ai-status');
-                    const campos = camposGenerados.map(campo => document.getElementById(
-                        `periodos_${periodo}_${campo}`));
-
-                    if (campos.some(campo => campo?.value.trim()) && !window.confirm(
-                            'Este bloque ya contiene información. ¿Deseas reemplazarla con una nueva propuesta de la IA?')) {
-                        return;
-                    }
+                    const etiquetaBoton = boton.querySelector('.planning-ai-button-label');
+                    const vistaPrevia = asistente.querySelector('.planning-ai-preview');
+                    const contador = asistente.querySelector('.planning-ai-timer');
+                    const contadorEtiqueta = contador?.querySelector('span');
+                    const contadorValor = contador?.querySelector('strong');
+                    const inicio = Date.now();
+                    const formatearTiempo = milisegundos => {
+                        const segundosTotales = Math.floor(milisegundos / 1000);
+                        const minutos = Math.floor(segundosTotales / 60);
+                        const segundos = segundosTotales % 60;
+                        return `${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+                    };
+                    const actualizarContador = () => {
+                        if (contadorValor) contadorValor.textContent = formatearTiempo(Date.now() - inicio);
+                    };
+                    const intervaloContador = window.setInterval(actualizarContador, 250);
 
                     boton.classList.add('is-loading');
                     boton.disabled = true;
-                    boton.textContent = 'Generando propuesta…';
+                    etiquetaBoton.textContent = 'Preparando propuesta…';
+                    if (contador) {
+                        contador.hidden = false;
+                        contador.classList.add('is-running');
+                    }
+                    if (contadorEtiqueta) contadorEtiqueta.textContent = 'Tiempo transcurrido';
+                    actualizarContador();
                     estado.hidden = false;
                     estado.className = 'planning-ai-status';
-                    estado.textContent = 'Ollama está preparando el período. Puede tardar un momento.';
+                    estado.textContent = 'El copiloto está organizando las actividades ERCA y sus apoyos DUA. Puede tardar un momento.';
+                    vistaPrevia.hidden = true;
 
                     try {
-                        const respuesta = await fetch(boton.dataset.endpoint, {
+                        const tema = document.getElementById(`periodos_${periodo}_tema`)?.value.trim();
+                        const indicaciones = document.getElementById(`periodos_${periodo}_indicaciones_ia`)?.value.trim();
+                        const solicitud = {
+                            asignacion_id: asignacionId,
+                            destreza_curricular_id: Number(destreza.value),
+                            indicador_evaluacion_id: Number(indicador.value),
+                            duracion_minutos: Number(boton.dataset.duration),
+                            titulo_unidad: document.getElementById('titulo_unidad')?.value || null,
+                            tema: tema || null,
+                            indicaciones: indicaciones || null
+                        };
+                        const enviar = () => fetch(boton.dataset.endpoint, {
                             method: 'POST',
                             headers: {
                                 'Accept': 'application/json',
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': csrf
                             },
-                            body: JSON.stringify({
-                                asignacion_id: asignacionId,
-                                destreza_curricular_id: Number(destreza.value),
-                                indicador_evaluacion_id: Number(indicador.value),
-                                duracion_minutos: Number(boton.dataset.duration),
-                                titulo_unidad: document.getElementById('titulo_unidad')?.value || null
-                            })
+                            credentials: 'same-origin',
+                            body: JSON.stringify(solicitud)
                         });
+
+                        let respuesta = await enviar();
+                        if (respuesta.status === 419 && await actualizarCsrf()) {
+                            respuesta = await enviar();
+                        }
+                        if (respuesta.status === 419) {
+                            throw new Error('Tu sesión expiró. Copia cualquier texto que quieras conservar y recarga la página para iniciar sesión nuevamente.');
+                        }
                         const datos = await respuesta.json().catch(() => ({}));
                         if (!respuesta.ok) {
                             const primerError = Object.values(datos.errors || {}).flat()[0];
                             throw new Error(primerError || datos.message || 'No se pudo generar la propuesta.');
                         }
 
-                        camposGenerados.forEach(campo => {
-                            const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
-                            if (entrada && typeof datos.propuesta?.[campo] === 'string') {
-                                entrada.value = datos.propuesta[campo];
-                                entrada.dispatchEvent(new Event('input', { bubbles: true }));
-                            }
+                        asistente.propuestaIa = datos.propuesta;
+                        asistente.querySelectorAll('[data-ai-preview]').forEach(elemento => {
+                            const valor = datos.propuesta?.[elemento.dataset.aiPreview];
+                            elemento.textContent = typeof valor === 'string' ? valor : '—';
                         });
+                        vistaPrevia.hidden = false;
                         estado.classList.add('is-success');
-                        estado.textContent = datos.message;
+                        estado.textContent = `Propuesta preparada en ${formatearTiempo(Date.now() - inicio)}. Revísala y elige cómo incorporarla al período.`;
                     } catch (error) {
+                        descartarPropuesta(asistente);
                         estado.classList.add('is-error');
-                        estado.textContent = error.message || 'No se pudo generar la propuesta.';
+                        estado.textContent = error instanceof TypeError && /fetch/i.test(error.message)
+                            ? 'La conexión con el servidor se interrumpió mientras Ollama generaba la propuesta. Espera a que termine cualquier generación pendiente y vuelve a intentarlo.'
+                            : (error.message || 'No se pudo generar la propuesta.');
                     } finally {
+                        window.clearInterval(intervaloContador);
+                        actualizarContador();
+                        contador?.classList.remove('is-running');
+                        if (contadorEtiqueta) contadorEtiqueta.textContent = 'Tiempo total';
                         boton.classList.remove('is-loading');
-                        boton.textContent = 'Generar otra propuesta';
-                        actualizarBotonIa(periodo);
+                        etiquetaBoton.textContent = asistente.propuestaIa ? 'Preparar otra propuesta' : 'Preparar propuesta';
+                        generacionIaActiva = false;
+                        document.querySelectorAll('.planning-ai-assistant').forEach(panel => actualizarBotonIa(panel.dataset.period));
                     }
+                });
+            });
+
+            document.querySelectorAll('.planning-ai-assistant').forEach(asistente => {
+                const periodo = asistente.dataset.period;
+                const estado = asistente.querySelector('.planning-ai-status');
+
+                const aplicar = reemplazar => {
+                    const propuesta = asistente.propuestaIa;
+                    if (!propuesta) return;
+
+                    const camposConContenido = camposGenerados
+                        .map(campo => document.getElementById(`periodos_${periodo}_${campo}`))
+                        .filter(campo => campo?.value.trim());
+                    if (reemplazar && camposConContenido.length && !window.confirm(
+                            'Se reemplazará el contenido escrito en este período. ¿Deseas continuar?')) return;
+
+                    let aplicados = 0;
+                    let conservados = 0;
+                    camposGenerados.forEach(campo => {
+                        const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
+                        if (!entrada || typeof propuesta[campo] !== 'string') return;
+                        if (!reemplazar && entrada.value.trim()) {
+                            conservados++;
+                            return;
+                        }
+                        entrada.value = propuesta[campo];
+                        entrada.dispatchEvent(new Event('input', { bubbles: true }));
+                        aplicados++;
+                    });
+
+                    asistente.querySelector('.planning-ai-preview').hidden = true;
+                    estado.hidden = false;
+                    estado.className = 'planning-ai-status is-success';
+                    estado.textContent = reemplazar
+                        ? `Propuesta aplicada en ${aplicados} campos. Revísala antes de guardar.`
+                        : `Se completaron ${aplicados} campos vacíos${conservados ? ` y se conservaron ${conservados}` : ''}. Revísalos antes de guardar.`;
+                };
+
+                asistente.querySelector('.planning-ai-apply-empty')?.addEventListener('click', () => aplicar(false));
+                asistente.querySelector('.planning-ai-apply-all')?.addEventListener('click', () => aplicar(true));
+                asistente.querySelector('.planning-ai-discard')?.addEventListener('click', () => {
+                    descartarPropuesta(asistente);
+                    estado.hidden = false;
+                    estado.className = 'planning-ai-status';
+                    estado.textContent = 'Propuesta descartada. Puedes ajustar las indicaciones y preparar otra.';
                 });
             });
         })();

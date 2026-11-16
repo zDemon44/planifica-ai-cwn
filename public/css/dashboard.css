@@ -142,6 +142,205 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.9px; margin: 0; }
 .teacher-course-actions { justify-content: flex-start; }
 @media (max-width: 700px) { .teacher-stats { grid-template-columns: 1fr; }.teacher-course-actions > a { flex: 1; text-align: center; } }
 
+/* Sidebar compacto con expansión contextual */
+.brand-copy,
+.nav-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (min-width: 701px) {
+    .sidebar {
+        width: 82px;
+        padding: 24px 12px 16px;
+        overflow-x: hidden;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        box-shadow: 4px 0 18px #102a4f0a;
+        transition: width .42s cubic-bezier(.22, 1, .36, 1),
+            padding .42s cubic-bezier(.22, 1, .36, 1),
+            box-shadow .32s ease;
+    }
+
+    .sidebar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .main-area {
+        margin-left: 82px;
+    }
+
+    .sidebar-header {
+        display: flex;
+        justify-content: center;
+    }
+
+    .sidebar .brand {
+        justify-content: center;
+        gap: 0;
+        padding: 0;
+    }
+
+    .sidebar .brand img {
+        width: 46px;
+        height: 46px;
+        transition: width .42s cubic-bezier(.22, 1, .36, 1),
+            height .42s cubic-bezier(.22, 1, .36, 1);
+    }
+
+    .sidebar .brand-copy,
+    .sidebar .nav-label {
+        width: 0;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity .18s ease;
+    }
+
+    .sidebar .school-name,
+    .sidebar .nav-caption,
+    .sidebar .sidebar-bottom,
+    .sidebar .nav-submenu {
+        display: none;
+    }
+
+    .sidebar nav {
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    .sidebar .nav-item,
+    .sidebar .nav-group > summary {
+        width: 50px;
+        min-height: 46px;
+        justify-content: center;
+        gap: 0;
+        margin: 6px auto;
+        padding: 0;
+        border-radius: 12px;
+    }
+
+    .sidebar .nav-item svg,
+    .sidebar .nav-group > summary > svg:first-child {
+        width: 21px;
+        height: 21px;
+    }
+
+    .sidebar .nav-chevron,
+    .sidebar .nav-count,
+    .sidebar .unavailable small {
+        display: none;
+    }
+
+    .sidebar.is-hover-expanded,
+    .sidebar:focus-within {
+        width: 246px;
+        padding: 27px 18px 16px;
+        box-shadow: 12px 0 30px #102a4f24;
+    }
+
+    .sidebar.is-hover-expanded .sidebar-header,
+    .sidebar:focus-within .sidebar-header {
+        justify-content: flex-start;
+    }
+
+    .sidebar.is-hover-expanded .brand,
+    .sidebar:focus-within .brand {
+        justify-content: flex-start;
+        gap: 12px;
+        padding: 0 12px;
+    }
+
+    .sidebar.is-hover-expanded .brand img,
+    .sidebar:focus-within .brand img {
+        width: 58px;
+        height: 58px;
+    }
+
+    .sidebar.is-hover-expanded .brand-copy,
+    .sidebar:focus-within .brand-copy,
+    .sidebar.is-hover-expanded .nav-label,
+    .sidebar:focus-within .nav-label {
+        width: auto;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: .12s;
+    }
+
+    .sidebar.is-hover-expanded .school-name,
+    .sidebar:focus-within .school-name,
+    .sidebar.is-hover-expanded .nav-caption,
+    .sidebar:focus-within .nav-caption,
+    .sidebar.is-hover-expanded .sidebar-bottom,
+    .sidebar:focus-within .sidebar-bottom,
+    .sidebar.is-hover-expanded .nav-submenu,
+    .sidebar:focus-within .nav-submenu {
+        display: block;
+    }
+
+    .sidebar.is-hover-expanded nav,
+    .sidebar:focus-within nav {
+        margin-top: 0;
+    }
+
+    .sidebar.is-hover-expanded .nav-item,
+    .sidebar:focus-within .nav-item,
+    .sidebar.is-hover-expanded .nav-group > summary,
+    .sidebar:focus-within .nav-group > summary {
+        width: auto;
+        min-height: 44px;
+        justify-content: flex-start;
+        gap: 11px;
+        margin: 4px 0;
+        padding: 12px 13px;
+        border-radius: 8px;
+    }
+
+    .sidebar.is-hover-expanded .nav-chevron,
+    .sidebar:focus-within .nav-chevron,
+    .sidebar.is-hover-expanded .nav-count,
+    .sidebar:focus-within .nav-count,
+    .sidebar.is-hover-expanded .unavailable small,
+    .sidebar:focus-within .unavailable small {
+        display: block;
+    }
+
+    .sidebar.is-hover-expanded .nav-submenu,
+    .sidebar:focus-within .nav-submenu {
+        display: grid;
+    }
+
+    .sidebar.is-hover-expanded .nav-submenu .nav-item,
+    .sidebar:focus-within .nav-submenu .nav-item {
+        min-height: 42px;
+        margin: 0;
+        padding: 10px 9px;
+        font-size: 11px;
+        line-height: 1.5;
+        border-radius: 6px;
+    }
+}
+
+@media (min-width: 701px) and (max-width: 1150px) {
+    .sidebar.is-hover-expanded,
+    .sidebar:focus-within {
+        width: 216px;
+        padding-inline: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .sidebar .brand img,
+    .sidebar .brand-copy,
+    .sidebar .nav-label {
+        transition: none;
+    }
+}
+
 
 .teacher-subjects { display: grid; gap: 36px; }
 .teacher-subject-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--brand); }

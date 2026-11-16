@@ -24,6 +24,8 @@
         $puedeDevolver = $esAdministracion
             && in_array($planificacion->estado, ['en_revision', 'revisada'], true)
             && $periodoAbierto;
+        $nombreDocente = trim("{$planificacion->asignacion->docente->nombres} {$planificacion->asignacion->docente->apellidos}");
+        $nombreTrimestre = ['Primer', 'Segundo', 'Tercer'][$planificacion->trimestre - 1].' trimestre';
     @endphp
     <div class="page-heading planning-toolbar">
         <div>
@@ -58,177 +60,153 @@
         </div>
     @endif
 
-    <article class="panel planning-document">
-        <header class="planning-document-header"><img src="{{ asset('images/logo-cwn.png') }}" alt="Emblema CWN"
-                width="82" height="82">
+    <article class="panel planning-document planning-document-matrix">
+        <header class="planning-matrix-header">
+            <img src="{{ asset('images/logo-cwn.png') }}" alt="Emblema CWN" width="76" height="76">
             <div>
-                <p>Escuela de Educación Básica Carmen Wither Navarro</p>
-                <h2>Planificación microcurricular</h2><span>Período lectivo
-                    {{ $planificacion->asignacion->seccion->periodo->nombre }}</span>
-            </div><span
-                class="planning-status planning-status-{{ $planificacion->estado }}">{{ App\Models\Planificacion::ESTADOS[$planificacion->estado] }}</span>
-        </header>
-        <section class="planning-document-section">
-            <h3>1. Datos informativos</h3>
-            <dl class="planning-details">
-                <div>
-                    <dt>Docente</dt>
-                    <dd>{{ $planificacion->asignacion->docente->nombres }}
-                        {{ $planificacion->asignacion->docente->apellidos }}</dd>
-                </div>
-                <div>
-                    <dt>Asignatura</dt>
-                    <dd>{{ $planificacion->asignacion->materia->nombre }}</dd>
-                </div>
-                <div>
-                    <dt>Número de períodos</dt>
-                    <dd>{{ $planificacion->numero_periodos }}</dd>
-                </div>
-                <div>
-                    <dt>Grado / curso</dt>
-                    <dd>{{ $planificacion->asignacion->seccion->curso->nombre }}</dd>
-                </div>
-                <div>
-                    <dt>Paralelo</dt>
-                    <dd>{{ $planificacion->asignacion->seccion->nombre }}</dd>
-                </div>
-                <div>
-                    <dt>Trimestre</dt>
-                    <dd>{{ ['Primer', 'Segundo', 'Tercer'][$planificacion->trimestre - 1] }} trimestre</dd>
-                </div>
-                <div>
-                    <dt>Título de la unidad</dt>
-                    <dd>{{ $planificacion->titulo_unidad ?: '—' }}</dd>
-                </div>
-                <div>
-                    <dt>Jornada</dt>
-                    <dd>{{ ucfirst($planificacion->jornada) }}</dd>
-                </div>
-                <div>
-                    <dt>Semana</dt>
-                    <dd>{{ $planificacion->numero_semana }}</dd>
-                </div>
-                <div>
-                    <dt>Fecha de inicio</dt>
-                    <dd>{{ $planificacion->fecha_inicio->format('d/m/Y') }}</dd>
-                </div>
-                <div>
-                    <dt>Fecha de finalización</dt>
-                    <dd>{{ $planificacion->fecha_fin->format('d/m/Y') }}</dd>
-                </div>
-            </dl>
-        </section>
-        <section class="planning-document-section">
-            <h3>2. Aprendizaje disciplinar</h3>
-            <div class="planning-text-block">
-                <h4>Objetivos de aprendizaje</h4>
-                <p>{{ $planificacion->objetivos_aprendizaje ?: '—' }}</p>
+                <p>Escuela de Educación Básica</p>
+                <h2>“CARMEN WITHER NAVARRO”</h2>
+                <strong>PERÍODO LECTIVO {{ $planificacion->asignacion->seccion->periodo->nombre }}</strong>
             </div>
-        </section>
-        <section class="planning-document-section">
-            <h3>Desarrollo por bloques de períodos</h3>
-            <div class="planning-period-documents">
-                @foreach ($planificacion->periodos as $periodo)
-                    <article class="planning-period-document">
-                        <header>
-                            <h4>{{ $periodo->numero_inicio === $periodo->numero_fin ? "Período {$periodo->numero_inicio}" : "Períodos {$periodo->numero_inicio} y {$periodo->numero_fin}" }}
-                                <small>({{ $periodo->duracion_minutos }} min)</small></h4>
-                            @if ($periodo->dia_semana)
-                                <span>{{ App\Models\Horario::DIAS[$periodo->dia_semana] }} ·
-                                    @if($periodo->fecha_clase){{ $periodo->fecha_clase->format('d/m/Y') }} · @endif
-                                    {{ substr($periodo->hora_inicio, 0, 5) }}–{{ substr($periodo->hora_fin, 0, 5) }}</span>
-                            @endif
-                        </header>
-                        <div class="planning-content-grid">
-                            @foreach ([
-        'destrezas_criterios_desempeno' => 'Destrezas con criterios de desempeño (estándar)',
-        'indicadores_evaluacion' => 'Indicadores de evaluación',
-        'recursos' => 'Recursos',
-    ] as $campo => $etiqueta)
-                                <div class="planning-text-block">
-                                    <h4>{{ $etiqueta }}
-                                        @if($campo === 'destrezas_criterios_desempeno' && $periodo->destrezaCurricular)
-                                            · {{ $periodo->destrezaCurricular->codigo }} · {{ $periodo->destrezaCurricular->curriculo->nombre }}@if($periodo->destrezaCurricular->competencias->isNotEmpty()) · {{ $periodo->destrezaCurricular->competencias->pluck('codigo')->implode(', ') }}@endif
-                                        @elseif($campo === 'indicadores_evaluacion' && $periodo->indicadorEvaluacion)
-                                            · {{ $periodo->indicadorEvaluacion->codigo }} · {{ $periodo->indicadorEvaluacion->curriculo->nombre }}@if($periodo->indicadorEvaluacion->competencias->isNotEmpty()) · {{ $periodo->indicadorEvaluacion->competencias->pluck('codigo')->implode(', ') }}@endif
-                                        @endif
-                                    </h4>
-                                    <p>{{ $periodo->{$campo} ?: '—' }}</p>
-                                </div>
-                            @endforeach
-                            <section class="planning-methodology-block">
-                                <h4>Orientaciones metodológicas para la enseñanza aprendizaje</h4>
-                                <div class="planning-methodology-steps">
-                                    @foreach (['tema' => 'Tema', 'experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
-                                        <div><span>{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                                            <div>
-                                                <h5>{{ $etiqueta }}</h5>
-                                                <p>{{ $periodo->{$campo} ?: '—' }}</p>
-                                                @if ($campo !== 'tema')
-                                                    @php($campoDua = "dua_{$campo}")
-                                                    <div class="planning-methodology-dua">
-                                                        <strong>DUA:</strong>
-                                                        <p>{{ $periodo->{$campoDua} ?: '—' }}</p>
-                                                    </div>
-                                                @endif
-                                            </div>
+            <span class="planning-status planning-status-{{ $planificacion->estado }}">{{ App\Models\Planificacion::ESTADOS[$planificacion->estado] }}</span>
+        </header>
+
+        <div class="planning-matrix-title">Planificación microcurricular</div>
+
+        <div class="planning-table-scroll">
+            <table class="planning-info-matrix">
+                <tbody>
+                    <tr class="planning-matrix-section"><th colspan="12">1.- DATOS INFORMATIVOS:</th></tr>
+                    <tr>
+                        <th>Docente:</th><td colspan="4">{{ $nombreDocente }}</td>
+                        <th>Asignatura:</th><td colspan="6">{{ $planificacion->asignacion->materia->nombre }}</td>
+                    </tr>
+                    <tr>
+                        <th>Grado/Paralelo:</th>
+                        <td colspan="2">{{ $planificacion->asignacion->seccion->curso->nombre }} “{{ $planificacion->asignacion->seccion->nombre }}”</td>
+                        <th>Trimestre:</th><td colspan="2">{{ $nombreTrimestre }}</td>
+                        <th>Título de la unidad:</th><td colspan="3">{{ $planificacion->titulo_unidad ?: '—' }}</td>
+                        <th>Jornada:</th><td>{{ ucfirst($planificacion->jornada) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Semana:</th><td>{{ $planificacion->numero_semana }}</td>
+                        <th>Desde:</th><td colspan="3">{{ $planificacion->fecha_inicio->format('d/m/Y') }}</td>
+                        <th>Hasta:</th><td colspan="3">{{ $planificacion->fecha_fin->format('d/m/Y') }}</td>
+                        <th>Períodos:</th><td>{{ $planificacion->numero_periodos }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="planning-table-scroll planning-objective-wrap">
+            <table class="planning-objective-matrix">
+                <colgroup>
+                    <col class="objective-label">
+                    <col class="objective-content">
+                </colgroup>
+                <thead>
+                    <tr class="planning-matrix-section">
+                        <th colspan="2">2.- Aprendizaje disciplinar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Objetivos de aprendizaje:</th>
+                        <td>{{ $planificacion->objetivos_aprendizaje ?: '—' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <section class="planning-curricular-matrices" aria-label="Desarrollo curricular por períodos">
+            @foreach ($planificacion->periodos as $periodo)
+                @php
+                    $etiquetaPeriodo = $periodo->numero_inicio === $periodo->numero_fin
+                        ? "Período {$periodo->numero_inicio}"
+                        : "Períodos {$periodo->numero_inicio} y {$periodo->numero_fin}";
+                @endphp
+                <div class="planning-table-scroll planning-period-matrix-wrap">
+                    <table class="planning-curricular-matrix">
+                        <colgroup><col class="matrix-skill"><col class="matrix-indicator"><col class="matrix-resources"><col class="matrix-method"><col class="matrix-evaluation"></colgroup>
+                        <thead>
+                            <tr class="planning-period-band">
+                                <th colspan="5">
+                                    <span>{{ $etiquetaPeriodo }} · {{ $periodo->duracion_minutos }} min</span>
+                                    @if ($periodo->dia_semana)
+                                        <small>{{ App\Models\Horario::DIAS[$periodo->dia_semana] }}@if($periodo->fecha_clase) · {{ $periodo->fecha_clase->format('d/m/Y') }}@endif · {{ substr($periodo->hora_inicio, 0, 5) }}-{{ substr($periodo->hora_fin, 0, 5) }}</small>
+                                    @endif
+                                </th>
+                            </tr>
+                            <tr>
+                                <th>Destrezas con criterios de desempeño</th>
+                                <th>Indicadores de evaluación</th>
+                                <th>Recursos</th>
+                                <th>Orientaciones metodológicas para la enseñanza aprendizaje</th>
+                                <th>Orientaciones para la evaluación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    @if($periodo->destrezaCurricular)
+                                        <strong class="planning-curriculum-code">{{ $periodo->destrezaCurricular->codigo }}</strong>
+                                        <small class="planning-curriculum-origin">{{ $periodo->destrezaCurricular->curriculo->nombre }}@if($periodo->destrezaCurricular->competencias->isNotEmpty()) · {{ $periodo->destrezaCurricular->competencias->pluck('codigo')->implode(', ') }}@endif</small>
+                                    @endif
+                                    <p>{{ $periodo->destrezas_criterios_desempeno ?: '—' }}</p>
+                                </td>
+                                <td>
+                                    @if($periodo->indicadorEvaluacion)
+                                        <strong class="planning-curriculum-code">{{ $periodo->indicadorEvaluacion->codigo }}</strong>
+                                        <small class="planning-curriculum-origin">{{ $periodo->indicadorEvaluacion->curriculo->nombre }}@if($periodo->indicadorEvaluacion->competencias->isNotEmpty()) · {{ $periodo->indicadorEvaluacion->competencias->pluck('codigo')->implode(', ') }}@endif</small>
+                                    @endif
+                                    <p>{{ $periodo->indicadores_evaluacion ?: '—' }}</p>
+                                </td>
+                                <td><p>{{ $periodo->recursos ?: '—' }}</p></td>
+                                <td>
+                                    <div class="planning-matrix-topic"><strong>Tema:</strong><p>{{ $periodo->tema ?: '—' }}</p></div>
+                                    @foreach (['experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campo => $etiqueta)
+                                        @php($campoDua = "dua_{$campo}")
+                                        <div class="planning-matrix-method">
+                                            <strong>{{ $etiqueta }}</strong>
+                                            <p>{{ $periodo->{$campo} ?: '—' }}</p>
+                                            <div class="planning-matrix-dua"><b>DUA:</b> {{ $periodo->{$campoDua} ?: '—' }}</div>
                                         </div>
                                     @endforeach
-                                </div>
-                            </section>
-                            <section class="planning-evaluation-block">
-                                <h4>Orientaciones para la evaluación</h4>
-                                <div>
-                                    <article>
-                                        <strong>Técnica</strong>
-                                        <p>{{ $periodo->tecnica_evaluacion ?: '—' }}</p>
-                                    </article>
-                                    <article>
-                                        <strong>Instrumento</strong>
-                                        <p>{{ $periodo->instrumento_evaluacion ?: '—' }}</p>
-                                    </article>
-                                </div>
-                            </section>
-                        </div>
-                    </article>
-                @endforeach
-            </div>
-        </section>
-        <section class="planning-document-section">
-            <h3>3. Adaptaciones curriculares</h3>
-            <div class="planning-content-grid">
-                @foreach ([
-        'adaptacion_destreza' => 'Destrezas con criterios de desempeño',
-        'adaptacion_indicadores_evaluacion' => 'Indicadores de evaluación',
-        'adaptacion_recursos' => 'Recursos',
-        'adaptacion_orientaciones_metodologicas' => 'Orientaciones metodológicas para la enseñanza aprendizaje',
-        'adaptacion_actividades_evaluacion_formativa' => 'Actividades e instrumentos de evaluación formativa',
-    ] as $campo => $etiqueta)
-                    <div class="planning-text-block">
-                        <h4>{{ $etiqueta }}</h4>
-                        <p>{{ $planificacion->{$campo} ?: '—' }}</p>
-                    </div>
-                @endforeach
-            </div>
-        </section>
-        <section class="planning-document-section">
-            <h3>Registro de elaboración, revisión y aprobación</h3>
-            <div class="planning-signatures">
-                <div><strong>Elaborado</strong>
-                    <p>{{ $planificacion->asignacion->docente->nombres }}
-                        {{ $planificacion->asignacion->docente->apellidos }}</p><small>Docente ·
-                        {{ $planificacion->created_at->format('d/m/Y') }}</small>
+                                </td>
+                                <td>
+                                    <div class="planning-matrix-evaluation"><strong>Técnica</strong><p>{{ $periodo->tecnica_evaluacion ?: '—' }}</p></div>
+                                    <div class="planning-matrix-evaluation"><strong>Instrumento</strong><p>{{ $periodo->instrumento_evaluacion ?: '—' }}</p></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div><strong>Revisado</strong>
-                    <p>{{ $planificacion->revisor?->name ?: 'Pendiente' }}</p>
-                    <small>{{ $planificacion->revisado_en?->format('d/m/Y H:i') ?: '—' }}</small>
-                </div>
-                <div><strong>Aprobado</strong>
-                    <p>{{ $planificacion->aprobador?->name ?: 'Pendiente' }}</p>
-                    <small>{{ $planificacion->aprobado_en?->format('d/m/Y H:i') ?: '—' }}</small>
-                </div>
-            </div>
+            @endforeach
         </section>
+
+        <div class="planning-table-scroll planning-adaptation-wrap">
+            <table class="planning-adaptation-matrix">
+                <thead><tr class="planning-matrix-section"><th colspan="5">3.- Adaptaciones curriculares</th></tr>
+                    <tr><th>DESTREZAS CON CRITERIOS DE DESEMPEÑO</th><th>INDICADORES DE EVALUACIÓN</th><th>RECURSOS</th><th>ORIENTACIONES METODOLÓGICAS</th><th>ACTIVIDADES E INSTRUMENTOS DE EVALUACIÓN</th></tr>
+                </thead>
+                <tbody><tr>
+                    <td>{{ $planificacion->adaptacion_destreza ?: '—' }}</td>
+                    <td>{{ $planificacion->adaptacion_indicadores_evaluacion ?: '—' }}</td>
+                    <td>{{ $planificacion->adaptacion_recursos ?: '—' }}</td>
+                    <td>{{ $planificacion->adaptacion_orientaciones_metodologicas ?: '—' }}</td>
+                    <td>{{ $planificacion->adaptacion_actividades_evaluacion_formativa ?: '—' }}</td>
+                </tr></tbody>
+            </table>
+        </div>
+
+        <table class="planning-signature-matrix">
+            <thead><tr><th>ELABORADO POR</th><th>REVISADO POR</th><th>APROBADO POR</th></tr></thead>
+            <tbody><tr>
+                <td><strong>{{ $nombreDocente }}</strong><span>Docente · {{ $planificacion->created_at->format('d/m/Y') }}</span></td>
+                <td><strong>{{ $planificacion->revisor?->name ?: 'Pendiente' }}</strong><span>{{ $planificacion->revisado_en?->format('d/m/Y H:i') ?: '—' }}</span></td>
+                <td><strong>{{ $planificacion->aprobador?->name ?: 'Pendiente' }}</strong><span>{{ $planificacion->aprobado_en?->format('d/m/Y H:i') ?: '—' }}</span></td>
+            </tr></tbody>
+        </table>
     </article>
 
     <div class="planning-actions">

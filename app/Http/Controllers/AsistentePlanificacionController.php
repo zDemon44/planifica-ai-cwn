@@ -7,12 +7,18 @@ use App\Models\Asignacion;
 use App\Models\DestrezaCurricular;
 use App\Models\IndicadorEvaluacion;
 use App\Services\GeneradorPeriodoPlanificacion;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Throwable;
 use UnexpectedValueException;
 
 class AsistentePlanificacionController extends Controller
 {
+    public function token(): JsonResponse
+    {
+        return response()->json(['token' => csrf_token()]);
+    }
+
     public function store(
         GenerarPeriodoIaRequest $request,
         GeneradorPeriodoPlanificacion $generador,
@@ -48,6 +54,8 @@ class AsistentePlanificacionController extends Controller
                 $indicador,
                 $request->integer('duracion_minutos'),
                 $request->string('titulo_unidad')->trim()->toString() ?: null,
+                $request->string('tema')->trim()->toString() ?: null,
+                $request->string('indicaciones')->trim()->toString() ?: null,
             );
         } catch (UnexpectedValueException $exception) {
             report($exception);
@@ -55,6 +63,18 @@ class AsistentePlanificacionController extends Controller
             return response()->json([
                 'message' => 'El asistente generó una respuesta incompleta. Inténtalo nuevamente.',
             ], 502);
+        } catch (ConnectionException $exception) {
+            report($exception);
+
+            if (str_contains(mb_strtolower($exception->getMessage()), 'timed out')) {
+                return response()->json([
+                    'message' => 'Ollama está abierto, pero la generación superó el tiempo máximo. Inténtalo nuevamente con indicaciones más breves.',
+                ], 504);
+            }
+
+            return response()->json([
+                'message' => 'No pudimos comunicarnos con el asistente. Verifica que Ollama esté abierto e inténtalo nuevamente.',
+            ], 503);
         } catch (Throwable $exception) {
             report($exception);
 

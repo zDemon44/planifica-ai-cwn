@@ -3,6 +3,26 @@ const sidebar = document.querySelector('#sidebar');
 const backdrop = document.querySelector('.sidebar-backdrop');
 const mobile = window.matchMedia('(max-width: 700px)');
 
+let sidebarHoverTimer;
+
+const resetSidebarHover = () => {
+    window.clearTimeout(sidebarHoverTimer);
+    sidebar?.classList.remove('is-hover-expanded');
+};
+
+if (sidebar) {
+    sidebar.addEventListener('mouseenter', () => {
+        if (mobile.matches) return;
+
+        window.clearTimeout(sidebarHoverTimer);
+        sidebarHoverTimer = window.setTimeout(() => {
+            sidebar.classList.add('is-hover-expanded');
+        }, 220);
+    });
+
+    sidebar.addEventListener('mouseleave', resetSidebarHover);
+}
+
 if (menuButton && sidebar && backdrop) {
     document.body.classList.add('js-ready');
     menuButton.hidden = false;
@@ -15,7 +35,7 @@ if (menuButton && sidebar && backdrop) {
         sidebar.inert = mobile.matches && !open;
 
         if (returnFocus) menuButton.focus();
-        if (open) sidebar.querySelector('a').focus();
+        if (open) sidebar.querySelector('a')?.focus();
     };
 
     menuButton.addEventListener('click', () => {
@@ -27,7 +47,8 @@ if (menuButton && sidebar && backdrop) {
             setMenu(false, true);
         }
         if (event.key === 'Tab' && mobile.matches && menuButton.getAttribute('aria-expanded') === 'true') {
-            const links = [...sidebar.querySelectorAll('a, button, summary')].filter((item) => item.getClientRects().length > 0);
+            const links = [...sidebar.querySelectorAll('a, button, summary')]
+                .filter((item) => item.getClientRects().length > 0);
             const first = links[0];
             const last = links[links.length - 1];
             if (event.shiftKey && document.activeElement === first) {
@@ -46,10 +67,13 @@ if (menuButton && sidebar && backdrop) {
                 item.removeAttribute('aria-current');
             });
             link.classList.add('active');
-            link.setAttribute('aria-current', 'location');
+            link.setAttribute('aria-current', 'page');
             if (mobile.matches) setMenu(false, true);
         });
     });
-    mobile.addEventListener('change', () => setMenu(false));
+    mobile.addEventListener('change', () => {
+        resetSidebarHover();
+        setMenu(false);
+    });
     setMenu(false);
 }

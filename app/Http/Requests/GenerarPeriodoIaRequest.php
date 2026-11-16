@@ -19,6 +19,8 @@ class GenerarPeriodoIaRequest extends FormRequest
             'indicador_evaluacion_id' => ['required', 'integer', 'exists:indicadores_evaluacion,id'],
             'duracion_minutos' => ['required', 'integer', 'between:45,360', 'multiple_of:45'],
             'titulo_unidad' => ['nullable', 'string', 'max:255'],
+            'tema' => ['nullable', 'string', 'max:500'],
+            'indicaciones' => ['nullable', 'string', 'max:600'],
         ];
     }
 
