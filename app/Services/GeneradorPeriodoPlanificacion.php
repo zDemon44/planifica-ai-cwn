@@ -7,12 +7,50 @@ use App\Models\DestrezaCurricular;
 use App\Models\IndicadorEvaluacion;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use JsonException;
 use UnexpectedValueException;
 
 class GeneradorPeriodoPlanificacion
 {
-    /** @return array<string, string> */
+    /** @var list<string> */
+    public const CAMPOS = [
+        'tema', 'recursos', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
+        'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
+        'tecnica_evaluacion', 'instrumento_evaluacion',
+    ];
+
+    /** @var list<string> */
+    public const CAMPOS_ENFOCABLES = [
+        'recursos', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
+        'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
+        'tecnica_evaluacion', 'instrumento_evaluacion',
+    ];
+
+    /** @var array<string, string> */
+    public const ETIQUETAS = [
+        'tema' => 'Tema',
+        'recursos' => 'Recursos',
+        'experiencia' => 'Experiencia',
+        'dua_experiencia' => 'DUA de la experiencia',
+        'reflexion' => 'Reflexión',
+        'dua_reflexion' => 'DUA de la reflexión',
+        'conceptualizacion' => 'Conceptualización',
+        'dua_conceptualizacion' => 'DUA de la conceptualización',
+        'aplicacion' => 'Aplicación',
+        'dua_aplicacion' => 'DUA de la aplicación',
+        'tecnica_evaluacion' => 'Técnica de evaluación',
+        'instrumento_evaluacion' => 'Instrumento de evaluación',
+    ];
+
+    private const CAMPOS_ERCA = ['experiencia', 'reflexion', 'conceptualizacion', 'aplicacion'];
+
+    /**
+     * Genera la propuesta completa del bloque o, cuando se indica un enfoque, solo ese campo.
+     *
+     * @param  array<string, string|null>  $contenidoActual
+     * @return array<string, string>
+     */
     public function generar(
         Asignacion $asignacion,
         DestrezaCurricular $destreza,
@@ -21,13 +59,10 @@ class GeneradorPeriodoPlanificacion
         ?string $tituloUnidad,
         ?string $tema,
         ?string $indicaciones,
+        ?string $enfoque = null,
+        array $contenidoActual = [],
     ): array {
-        $campos = [
-            'tema', 'recursos', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
-            'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion',
-            'tecnica_evaluacion', 'instrumento_evaluacion',
-        ];
-        $camposErca = ['experiencia', 'reflexion', 'conceptualizacion', 'aplicacion'];
+        $campos = $enfoque ? [$enfoque] : self::CAMPOS;
         $longitudesMaximas = [
             'tema' => 120,
             'recursos' => 350,
@@ -52,8 +87,8 @@ class GeneradorPeriodoPlanificacion
             'tecnica_evaluacion' => 'Método que utilizará el docente para evaluar el aprendizaje, acompañado de una explicación breve de cómo se aplicará en las actividades propuestas.',
             'instrumento_evaluacion' => 'Herramienta de evaluación completa y lista para usar: nombre, escala o forma de registro y criterios, descriptores, campos o preguntas concretas alineadas con el indicador.',
         ];
-        $propiedades = collect($campos)->mapWithKeys(function (string $campo) use ($camposErca, $descripciones, $longitudesMaximas): array {
-            if (in_array($campo, $camposErca, true)) {
+        $propiedades = collect($campos)->mapWithKeys(function (string $campo) use ($descripciones, $longitudesMaximas): array {
+            if (in_array($campo, self::CAMPOS_ERCA, true)) {
                 return [$campo => [
                     'type' => 'array',
                     'description' => $descripciones[$campo],
@@ -76,46 +111,70 @@ class GeneradorPeriodoPlanificacion
             'additionalProperties' => false,
         ];
 
+        $reglas = [
+            'erca' => '1. ERCA: generar dos o tres acciones diferentes por fase según lo que realmente necesite el aprendizaje; no usar siempre la misma cantidad. Cada elemento debe contener una sola acción desarrollada, SIN guiones, viñetas, números ni prefijos. Iniciar con infinitivo. Precisar qué hará el estudiante, con qué contenido o material y con qué finalidad; evitar frases vagas y no acumular varias acciones en una sola oración.',
+            'experiencia' => '2. EXPERIENCIA: activar saberes e interés mediante una situación cercana y exploración concreta con objetos, imágenes, materiales, juego, cuento o demostración. No formalizar conceptos todavía.',
+            'reflexion' => '3. REFLEXIÓN: comparar lo observado, describir relaciones, expresar razonamientos y dialogar a partir de preguntas específicas como «¿...?» que conduzcan al concepto sin responderlo aún.',
+            'conceptualizacion' => '4. CONCEPTUALIZACIÓN: explicar y formalizar el concepto, regla o procedimiento; representarlo con ejemplos, lectura, esquemas u organizadores y comprobar su comprensión. Precisar el contenido, no decir solo «explicar el tema».',
+            'aplicacion' => '5. APLICACIÓN: proponer práctica pertinente, resolver una tarea concreta, transferir a una situación nueva o cotidiana y obtener evidencia observable del indicador. Sin relleno.',
+            'continuidad' => '6. Mantener continuidad: reflexionar sobre la experiencia, conceptualizar sus interrogantes y aplicar lo aprendido.',
+            'dua' => '7. DUA: redactar en infinitivo un apoyo específico por fase: participación en experiencia, expresión en reflexión, representaciones en conceptualización y formas de acción/respuesta en aplicación. Texto plano, sin JSON interno ni frases genéricas.',
+            'recursos' => '8. RECURSOS: lista natural y completa, sin «Docente:» ni «Estudiantes:». Incluir lo pedido y los materiales ordinarios que realmente requieren las actividades, sin inventar. Conservar literalmente páginas, ejercicios y números; nunca ampliar «página 13» a un rango.',
+            'tecnica' => '9. TÉCNICA: indicar el método de evaluación y cómo aplicarlo (observación, preguntas, debate, exposición, ejercicios, análisis de trabajos o prueba).',
+            'instrumento' => '10. INSTRUMENTO: no devolver solamente nombres. Entregarlo listo para usar y alineado con el indicador. Si es lista de cotejo/ficha, incluir escala y entre tres y cinco criterios observables; si es rúbrica/escala, criterios, niveles y descriptores; si es cuestionario/prueba, preguntas o ejercicios; si es registro anecdótico, campos y desempeño observado.',
+            'alineacion' => '11. Alinear técnica e instrumento con aplicación e indicador. No evaluar contenidos no trabajados ni usar criterios genéricos.',
+        ];
+
         $curso = $asignacion->seccion->curso;
         $contextoUnidad = filled($tituloUnidad)
             ? "\nTítulo de la unidad indicado por el docente: {$tituloUnidad}."
             : '';
         $contextoTema = filled($tema)
-            ? "\nTema definido por el docente: {$tema}. Debes conservar este tema exactamente en el campo tema."
+            ? ($enfoque
+                ? "\nTema de la clase: {$tema}."
+                : "\nTema definido por el docente: {$tema}. Debes conservar este tema exactamente en el campo tema.")
             : '';
         $contextoIndicaciones = filled($indicaciones)
             ? "\nIndicaciones literales del docente: {$indicaciones}. Son la fuente prioritaria de la propuesta: respeta exactamente sus números, páginas, ejercicios y materiales; no completes rangos ni agregues páginas cercanas."
             : '';
-        $prompt = <<<PROMPT
-Diseña un único bloque de clase de {$duracionMinutos} minutos para Educación General Básica de Ecuador.
+        $contextoCurricular = <<<CONTEXTO
 Asignatura: {$asignacion->materia->nombre}.
 Curso: {$curso->nombre}, paralelo {$asignacion->seccion->nombre}.
 Destreza seleccionada: {$destreza->codigo} {$destreza->descripcion}
 Indicador relacionado: {$indicador->codigo} {$indicador->descripcion}{$contextoUnidad}{$contextoTema}{$contextoIndicaciones}
+CONTEXTO;
+
+        $prompt = $enfoque
+            ? $this->promptEnfocado($enfoque, $duracionMinutos, $contextoCurricular, $reglas, $contenidoActual)
+            : <<<PROMPT
+Diseña un único bloque de clase de {$duracionMinutos} minutos para Educación General Básica de Ecuador.
+{$contextoCurricular}
 
 Genera una planificación completa, específica, realizable y sin redundancias. Ajustarla al curso, indicador y {$duracionMinutos} minutos. No inventar códigos ni repetir la destreza como actividad.
 
 REGLAS:
-1. ERCA: generar dos o tres acciones diferentes por fase según lo que realmente necesite el aprendizaje; no usar siempre la misma cantidad. Cada elemento debe contener una sola acción desarrollada, SIN guiones, viñetas, números ni prefijos. Iniciar con infinitivo. Precisar qué hará el estudiante, con qué contenido o material y con qué finalidad; evitar frases vagas y no acumular varias acciones en una sola oración.
-2. EXPERIENCIA: activar saberes e interés mediante una situación cercana y exploración concreta con objetos, imágenes, materiales, juego, cuento o demostración. No formalizar conceptos todavía.
-3. REFLEXIÓN: comparar lo observado, describir relaciones, expresar razonamientos y dialogar a partir de preguntas específicas como «¿...?» que conduzcan al concepto sin responderlo aún.
-4. CONCEPTUALIZACIÓN: explicar y formalizar el concepto, regla o procedimiento; representarlo con ejemplos, lectura, esquemas u organizadores y comprobar su comprensión. Precisar el contenido, no decir solo «explicar el tema».
-5. APLICACIÓN: proponer práctica pertinente, resolver una tarea concreta, transferir a una situación nueva o cotidiana y obtener evidencia observable del indicador. Sin relleno.
-6. Mantener continuidad: reflexionar sobre la experiencia, conceptualizar sus interrogantes y aplicar lo aprendido.
-7. DUA: redactar en infinitivo un apoyo específico por fase: participación en experiencia, expresión en reflexión, representaciones en conceptualización y formas de acción/respuesta en aplicación. Texto plano, sin JSON interno ni frases genéricas.
-8. RECURSOS: lista natural y completa, sin «Docente:» ni «Estudiantes:». Incluir lo pedido y los materiales ordinarios que realmente requieren las actividades, sin inventar. Conservar literalmente páginas, ejercicios y números; nunca ampliar «página 13» a un rango.
-9. TÉCNICA: indicar el método de evaluación y cómo aplicarlo (observación, preguntas, debate, exposición, ejercicios, análisis de trabajos o prueba).
-10. INSTRUMENTO: no devolver solamente nombres. Entregarlo listo para usar y alineado con el indicador. Si es lista de cotejo/ficha, incluir escala y entre tres y cinco criterios observables; si es rúbrica/escala, criterios, niveles y descriptores; si es cuestionario/prueba, preguntas o ejercicios; si es registro anecdótico, campos y desempeño observado.
-11. Alinear técnica e instrumento con aplicación e indicador. No evaluar contenidos no trabajados ni usar criterios genéricos.
+{$reglas['erca']}
+{$reglas['experiencia']}
+{$reglas['reflexion']}
+{$reglas['conceptualizacion']}
+{$reglas['aplicacion']}
+{$reglas['continuidad']}
+{$reglas['dua']}
+{$reglas['recursos']}
+{$reglas['tecnica']}
+{$reglas['instrumento']}
+{$reglas['alineacion']}
 
 Máximos: tema 15 palabras; recursos 45; cada fase ERCA 140; cada DUA 45; técnica 45; instrumento 180. Devolver solo el objeto JSON del esquema con todos los campos.
 PROMPT;
 
         $ultimoError = null;
         foreach ([false, true] as $esReintento) {
-            $promptActual = $esReintento
-                ? $prompt."\n\nREINTENTO: la respuesta anterior no cumplió el JSON o produjo fases ERCA demasiado breves. Completa los 12 campos y desarrolla cada fase con acciones específicas, suficientes y conectadas entre sí. Escribe cada acción en una línea nueva sin guiones ni viñetas."
-                : $prompt;
+            $avisoReintento = $enfoque
+                ? "\n\nREINTENTO: la respuesta anterior no cumplió el JSON o quedó demasiado breve. Devuelve el campo solicitado completo, específico y conectado con el resto del bloque. Escribe cada acción en una línea nueva sin guiones ni viñetas."
+                : "\n\nREINTENTO: la respuesta anterior no cumplió el JSON o produjo fases ERCA demasiado breves. Completa los 12 campos y desarrolla cada fase con acciones específicas, suficientes y conectadas entre sí. Escribe cada acción en una línea nueva sin guiones ni viñetas.";
+            $promptActual = $esReintento ? $prompt.$avisoReintento : $prompt;
+            $maximoTokens = $enfoque ? ($esReintento ? 650 : 550) : ($esReintento ? 950 : 850);
             $respuesta = Http::baseUrl('https://generativelanguage.googleapis.com/v1beta')
                 ->withHeaders(['x-goog-api-key' => config('services.gemini.api_key')])
                 ->connectTimeout((int) config('services.gemini.connect_timeout'))
@@ -132,7 +191,7 @@ PROMPT;
                     ]],
                     'generationConfig' => [
                         'temperature' => 0.1,
-                        'maxOutputTokens' => $esReintento ? 950 : 850,
+                        'maxOutputTokens' => $maximoTokens,
                         'responseMimeType' => 'application/json',
                         'responseJsonSchema' => $esquema,
                     ],
@@ -159,7 +218,7 @@ PROMPT;
                 /** @var array<string, string> $datos */
                 $datos = $validador->validated();
                 $this->validarProfundidadErca($datos);
-                if (filled($tema)) {
+                if (! $enfoque && filled($tema)) {
                     $datos['tema'] = $tema;
                 }
 
@@ -170,6 +229,53 @@ PROMPT;
         }
 
         throw $ultimoError ?? new UnexpectedValueException('Gemini no devolvió una propuesta válida.');
+    }
+
+    /**
+     * @param  array<string, string>  $reglas
+     * @param  array<string, string|null>  $contenidoActual
+     */
+    private function promptEnfocado(string $enfoque, int $duracionMinutos, string $contextoCurricular, array $reglas, array $contenidoActual): string
+    {
+        $etiqueta = self::ETIQUETAS[$enfoque];
+        $fase = str_starts_with($enfoque, 'dua_') ? substr($enfoque, 4) : $enfoque;
+        $reglasCampo = match (true) {
+            in_array($enfoque, self::CAMPOS_ERCA, true) => [$reglas['erca'], $reglas[$enfoque], $reglas['continuidad']],
+            str_starts_with($enfoque, 'dua_') => [$reglas['dua'], "Redactar únicamente el apoyo DUA de la fase {$fase}, coherente con sus actividades."],
+            $enfoque === 'recursos' => [$reglas['recursos']],
+            $enfoque === 'tecnica_evaluacion' => [$reglas['tecnica'], $reglas['alineacion']],
+            default => [$reglas['instrumento'], $reglas['alineacion']],
+        };
+        $maximos = [
+            'recursos' => 45, 'tecnica_evaluacion' => 45, 'instrumento_evaluacion' => 180,
+        ][$enfoque] ?? (in_array($enfoque, self::CAMPOS_ERCA, true) ? 140 : 45);
+
+        $textoActual = trim((string) ($contenidoActual[$enfoque] ?? ''));
+        $contextoBloque = collect(self::CAMPOS)
+            ->reject(fn (string $campo): bool => $campo === $enfoque)
+            ->map(fn (string $campo): ?string => filled($contenidoActual[$campo] ?? null)
+                ? self::ETIQUETAS[$campo].': '.Str::limit(trim((string) $contenidoActual[$campo]), 600)
+                : null)
+            ->filter()
+            ->implode("\n");
+        $seccionBloque = $contextoBloque !== ''
+            ? "\n\nContenido actual del bloque, para mantener coherencia (no lo copies en el campo solicitado):\n{$contextoBloque}"
+            : '';
+        $seccionActual = $textoActual !== ''
+            ? "\n\nTexto actual de «{$etiqueta}»:\n".Str::limit($textoActual, 1500)."\nMejóralo: conserva lo útil, corrige lo débil y aplica las indicaciones del docente."
+            : '';
+        $listaReglas = implode("\n", $reglasCampo);
+
+        return <<<PROMPT
+Redacta únicamente el campo «{$etiqueta}» de un bloque de clase de {$duracionMinutos} minutos para Educación General Básica de Ecuador.
+{$contextoCurricular}{$seccionBloque}{$seccionActual}
+
+REGLAS:
+{$listaReglas}
+Ajustar el contenido al curso, al indicador y a los {$duracionMinutos} minutos. No inventar códigos.
+
+Máximo {$maximos} palabras. Devolver solo el objeto JSON del esquema con el campo {$enfoque}.
+PROMPT;
     }
 
     /** @param array<string, mixed> $propuesta
@@ -202,7 +308,7 @@ PROMPT;
     /** @param array<string, string> $propuesta */
     private function validarProfundidadErca(array $propuesta): void
     {
-        foreach (['experiencia', 'reflexion', 'conceptualizacion', 'aplicacion'] as $campo) {
+        foreach (array_intersect(self::CAMPOS_ERCA, array_keys($propuesta)) as $campo) {
             $contenido = trim($propuesta[$campo] ?? '');
             $lineas = array_values(array_filter(preg_split('/\R+/u', $contenido) ?: [], 'strlen'));
             preg_match_all('/[\p{L}\p{N}]+/u', $contenido, $palabras);

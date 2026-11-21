@@ -93,7 +93,7 @@ class UsuariosTest extends TestCase
         $this->actingAs($usuario);
 
         $this->get('/dashboard')->assertOk()->assertViewIs('PortalDocente.panel')->assertSee($asignacion->materia->nombre)->assertDontSee($otra->materia->nombre);
-        $this->get('/mis-cursos')->assertSee($asignacion->materia->nombre)->assertDontSee($otra->materia->nombre);
+        $this->followingRedirects()->get('/mis-cursos')->assertOk()->assertSee($asignacion->materia->nombre)->assertDontSee($otra->materia->nombre);
         $this->get(route('planificaciones.index'))->assertOk()->assertSee($asignacion->materia->nombre)->assertDontSee($otra->materia->nombre);
         $this->get('/docentes')->assertForbidden();
         $this->get('/academico')->assertForbidden();

@@ -262,7 +262,7 @@
                     $fin = $bloque['numero_fin'];
                     $tituloPeriodo = $inicio === $fin ? "Período {$inicio}" : "Períodos {$inicio} y {$fin}";
                 @endphp
-                <article class="planning-period-card">
+                <article class="planning-period-card" id="bloque-{{ $indice }}" data-period="{{ $indice }}">
                     <header>
                         <div><span
                                 class="planning-period-number">{{ str_pad($indice + 1, 2, '0', STR_PAD_LEFT) }}</span>
@@ -399,69 +399,9 @@
                         </div>
                         @if(auth()->user()->role === 'DOCENTE')
                             <div class="planning-ai-launch">
-                                <div><span aria-hidden="true">✦</span><div><strong>¿Necesitas ayuda con este período?</strong><small>El copiloto puede preparar una propuesta para que la revises.</small></div></div>
+                                <div><span aria-hidden="true">✦</span><div><strong>¿Necesitas ayuda con este bloque?</strong><small>Prepara todo el bloque o usa ✦ junto a cualquier campo para trabajar solo en él.</small></div></div>
                                 <button type="button" data-ai-open="{{ $indice }}">Abrir copiloto</button>
                             </div>
-                            <section class="planning-ai-assistant" id="planning-ai-assistant-{{ $indice }}"
-                                data-period="{{ $indice }}" role="dialog" aria-modal="true"
-                                aria-labelledby="planning-ai-title-{{ $indice }}" aria-hidden="true" inert>
-                                <header class="planning-ai-header">
-                                    <div class="planning-ai-copy"><span aria-hidden="true">✦</span>
-                                        <div><strong id="planning-ai-title-{{ $indice }}">Copiloto del período</strong>
-                                            <p>Prepara una propuesta ERCA con DUA para que la revises antes de incorporarla.</p>
-                                        </div>
-                                    </div>
-                                    <div class="planning-ai-header-actions"><span class="planning-ai-badge">IA local</span>
-                                        <button class="planning-ai-close" type="button" aria-label="Cerrar copiloto">×</button>
-                                    </div>
-                                </header>
-                                <div class="planning-ai-readiness">
-                                    <span aria-hidden="true"></span>
-                                    <div><strong class="planning-ai-readiness-title">Selecciona la destreza y el indicador</strong>
-                                        <small>{{ $bloque['duracion_minutos'] }} minutos disponibles para este bloque</small>
-                                    </div>
-                                </div>
-                                <div class="field planning-ai-instructions">
-                                    <label for="periodos_{{ $indice }}_indicaciones_ia">¿Quieres orientar la propuesta? <small>Opcional</small></label>
-                                    <textarea id="periodos_{{ $indice }}_indicaciones_ia" rows="2" maxlength="600"
-                                        placeholder="Ej.: utiliza material concreto, trabajo en parejas o actividades sin internet"></textarea>
-                                    <small>La IA respetará la selección curricular, el tema y el tiempo del período.</small>
-                                </div>
-                                <div class="planning-ai-generate">
-                                    <button class="planning-ai-button" type="button"
-                                        data-endpoint="{{ route('planificaciones.asistente.periodos.store') }}"
-                                        data-duration="{{ $bloque['duracion_minutos'] }}" disabled>
-                                        <span aria-hidden="true">✦</span><span class="planning-ai-button-label">Preparar propuesta</span>
-                                    </button>
-                                    <div class="planning-ai-timer" hidden>
-                                        <span>Tiempo transcurrido</span>
-                                        <strong>00:00</strong>
-                                    </div>
-                                    <small>La propuesta no modificará el formulario hasta que decidas aplicarla.</small>
-                                </div>
-                                <p class="planning-ai-status" role="status" aria-live="polite" hidden></p>
-                                <div class="planning-ai-preview" hidden>
-                                    <header><div><span>Vista previa</span><strong data-ai-preview="tema"></strong></div>
-                                        <button class="planning-ai-discard" type="button" aria-label="Descartar propuesta">×</button>
-                                    </header>
-                                    <div class="planning-ai-preview-meta">
-                                        <article><span>Recursos</span><p data-ai-preview="recursos"></p></article>
-                                        <article><span>Evaluación</span><p><strong data-ai-preview="tecnica_evaluacion"></strong> · <span data-ai-preview="instrumento_evaluacion"></span></p></article>
-                                    </div>
-                                    <ol class="planning-ai-preview-erca">
-                                        @foreach (['experiencia' => 'Experiencia', 'reflexion' => 'Reflexión', 'conceptualizacion' => 'Conceptualización', 'aplicacion' => 'Aplicación'] as $campoIa => $etiquetaIa)
-                                            <li><span>{{ substr($etiquetaIa, 0, 1) }}</span><div><strong>{{ $etiquetaIa }}</strong><p data-ai-preview="{{ $campoIa }}"></p><small><b>DUA:</b> <span data-ai-preview="dua_{{ $campoIa }}"></span></small></div></li>
-                                        @endforeach
-                                    </ol>
-                                    <footer>
-                                        <div><strong>¿Cómo deseas incorporarla?</strong><small>Puedes proteger lo que ya escribiste o sustituir todo el contenido del período.</small></div>
-                                        <div class="planning-ai-preview-actions">
-                                            <button class="planning-ai-apply-empty" type="button">Completar campos vacíos</button>
-                                            <button class="planning-ai-apply-all" type="button">Reemplazar período</button>
-                                        </div>
-                                    </footer>
-                                </div>
-                            </section>
                         @endif
                         <div class="field planning-textarea planning-period-full"><label
                                 for="periodos_{{ $indice }}_recursos">Recursos</label>
@@ -554,8 +494,66 @@
         <div class="form-actions"><a class="secondary-button" href="{{ $rutaListado }}">Cancelar</a><button
                 class="primary-button" type="submit" @disabled(!$asignacionSeleccionada || $bloquesPlanificacion->isEmpty())>Guardar borrador</button></div>
     </form>
-    @if(auth()->user()->role === 'DOCENTE')
-        <button class="planning-ai-backdrop" type="button" aria-label="Cerrar copiloto" hidden></button>
+    @if(auth()->user()->role === 'DOCENTE' && $bloquesPlanificacion->isNotEmpty())
+        <aside class="copilot" id="copilot" aria-labelledby="copilot-titulo" hidden>
+            <header class="copilot-header">
+                <span class="copilot-mark" aria-hidden="true">✦</span>
+                <div><strong id="copilot-titulo">Copiloto</strong><p>Prepara propuestas ERCA y DUA que revisas en cada campo antes de conservarlas.</p></div>
+                <button class="copilot-close" type="button" aria-label="Cerrar copiloto">×</button>
+            </header>
+            <div class="copilot-body">
+                <div class="copilot-field">
+                    <label for="copilot-bloque">Bloque</label>
+                    <select id="copilot-bloque">
+                        @foreach ($bloquesPlanificacion as $indice => $bloque)
+                            <option value="{{ $indice }}" data-duration="{{ $bloque['duracion_minutos'] }}">
+                                Bloque {{ str_pad($indice + 1, 2, '0', STR_PAD_LEFT) }} · {{ $bloque['dia'] }} {{ substr($bloque['hora_inicio'], 0, 5) }} · {{ $bloque['duracion_minutos'] }} min
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="copilot-readiness">
+                    <span aria-hidden="true"></span>
+                    <div><strong data-copilot-ready-title>Selecciona la destreza y el indicador</strong><small data-copilot-ready-detail></small></div>
+                </div>
+                <div class="copilot-field">
+                    <label for="copilot-enfoque">¿Qué quieres preparar?</label>
+                    <select id="copilot-enfoque">
+                        <option value="">Todo el bloque</option>
+                        <option value="recursos">Recursos</option>
+                        <optgroup label="Desarrollo ERCA">
+                            @foreach (['experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion', 'conceptualizacion', 'dua_conceptualizacion', 'aplicacion', 'dua_aplicacion'] as $campoEnfoque)
+                                <option value="{{ $campoEnfoque }}">{{ App\Services\GeneradorPeriodoPlanificacion::ETIQUETAS[$campoEnfoque] }}</option>
+                            @endforeach
+                        </optgroup>
+                        <optgroup label="Evaluación">
+                            <option value="tecnica_evaluacion">Técnica de evaluación</option>
+                            <option value="instrumento_evaluacion">Instrumento de evaluación</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="copilot-field">
+                    <label for="copilot-indicaciones">Indicaciones <small>Opcional</small></label>
+                    <textarea id="copilot-indicaciones" rows="3" maxlength="600"
+                        placeholder="Ej.: utiliza material concreto, trabajo en parejas o actividades sin internet"></textarea>
+                </div>
+                <div class="copilot-actions">
+                    <button class="copilot-generate" type="button" data-endpoint="{{ route('planificaciones.asistente.periodos.store') }}" disabled>
+                        <span aria-hidden="true">✦</span><span data-copilot-label>Preparar propuesta</span>
+                    </button>
+                    <span class="copilot-timer" aria-label="Tiempo transcurrido" hidden>00:00</span>
+                </div>
+                <p class="copilot-status" role="status" aria-live="polite" hidden></p>
+                <section class="copilot-changes" aria-labelledby="copilot-cambios-titulo" hidden>
+                    <header><strong id="copilot-cambios-titulo">Cambios propuestos</strong><span data-copilot-count></span></header>
+                    <ul></ul>
+                    <footer>
+                        <button class="copilot-discard-all" type="button">Descartar todo</button>
+                        <button class="copilot-keep-all" type="button">Mantener todo</button>
+                    </footer>
+                </section>
+            </div>
+        </aside>
     @endif
 
     @if (!$planificacion->exists && !$asignacionSeleccionada)
@@ -632,32 +630,37 @@
 
             const controles = periodo => ({
                 destreza: document.getElementById(`periodos_${periodo}_destreza`),
-                indicador: document.getElementById(`periodos_${periodo}_indicador`),
-                asistente: document.querySelector(`.planning-ai-assistant[data-period="${periodo}"]`)
+                indicador: document.getElementById(`periodos_${periodo}_indicador`)
             });
 
+            const copiloto = document.getElementById('copilot');
+            const copilotoBloque = document.getElementById('copilot-bloque');
+            const copilotoEnfoque = document.getElementById('copilot-enfoque');
+
             const actualizarBotonIa = periodo => {
-                const { destreza, indicador, asistente } = controles(periodo);
-                const boton = asistente?.querySelector('.planning-ai-button');
+                if (!copiloto || String(periodo) !== copilotoBloque.value) return;
+                const { destreza, indicador } = controles(periodo);
                 const listo = Boolean(destreza?.value && indicador?.value);
-                if (boton && !boton.classList.contains('is-loading')) {
+                const boton = copiloto.querySelector('.copilot-generate');
+                if (!boton.classList.contains('is-loading')) {
                     boton.disabled = !listo || generacionIaActiva;
                 }
-                const preparacion = asistente?.querySelector('.planning-ai-readiness');
-                const titulo = asistente?.querySelector('.planning-ai-readiness-title');
-                if (preparacion && titulo) {
-                    preparacion.classList.toggle('is-ready', listo);
-                    titulo.textContent = listo
-                        ? 'Contexto curricular listo para generar'
-                        : 'Selecciona la destreza y el indicador';
-                }
-            };
-
-            const descartarPropuesta = asistente => {
-                if (!asistente) return;
-                asistente.propuestaIa = null;
-                const vistaPrevia = asistente.querySelector('.planning-ai-preview');
-                if (vistaPrevia) vistaPrevia.hidden = true;
+                const enfoque = copilotoEnfoque.value;
+                const entradaEnfocada = enfoque ? document.getElementById(`periodos_${periodo}_${enfoque}`) : null;
+                const minutos = copilotoBloque.selectedOptions[0]?.dataset.duration;
+                copiloto.querySelector('.copilot-readiness').classList.toggle('is-ready', listo);
+                copiloto.querySelector('[data-copilot-ready-title]').textContent = listo
+                    ? 'Contexto curricular listo'
+                    : 'Selecciona la destreza y el indicador del bloque';
+                copiloto.querySelector('[data-copilot-ready-detail]').textContent = !enfoque
+                    ? `${minutos} minutos · se propondrán todos los campos del bloque`
+                    : (entradaEnfocada?.value.trim()
+                        ? `${minutos} minutos · mejorará el texto actual de este campo`
+                        : `${minutos} minutos · redactará solo este campo`);
+                const nombreEnfoque = copilotoEnfoque.selectedOptions[0]?.textContent.trim() || '';
+                copiloto.querySelector('[data-copilot-label]').textContent = enfoque
+                    ? `Preparar ${nombreEnfoque.startsWith('DUA') ? nombreEnfoque : nombreEnfoque.charAt(0).toLowerCase() + nombreEnfoque.slice(1)}`
+                    : 'Preparar todo el bloque';
             };
 
             const descripcionSinCodigo = item => {
@@ -761,7 +764,6 @@
 
             document.querySelectorAll('.curriculum-skill-select').forEach(destreza => {
                 destreza.addEventListener('change', () => {
-                    descartarPropuesta(controles(destreza.dataset.period).asistente);
                     const indicador = document.getElementById(
                         `periodos_${destreza.dataset.period}_indicador`);
                     const opciones = relacionados[destreza.value] || [];
@@ -784,7 +786,6 @@
                 });
                 const indicador = document.getElementById(`periodos_${destreza.dataset.period}_indicador`);
                 indicador?.addEventListener('change', () => {
-                    descartarPropuesta(controles(destreza.dataset.period).asistente);
                     actualizarBotonIa(destreza.dataset.period);
                 });
                 actualizarBotonIa(destreza.dataset.period);
@@ -887,214 +888,329 @@
                 cargarTemasUnidad(false);
             }
 
-            const fondoAsistente = document.querySelector('.planning-ai-backdrop');
-            let activadorAsistente = null;
-
-            const cerrarAsistente = (devolverFoco = true) => {
-                const abierto = document.querySelector('.planning-ai-assistant.is-open');
-                if (!abierto) return;
-                abierto.classList.remove('is-open');
-                abierto.setAttribute('aria-hidden', 'true');
-                abierto.inert = true;
-                if (fondoAsistente) fondoAsistente.hidden = true;
-                if (devolverFoco) activadorAsistente?.focus();
-                activadorAsistente = null;
-            };
-
-            document.querySelectorAll('[data-ai-open]').forEach(activador => {
-                activador.addEventListener('click', () => {
-                    cerrarAsistente(false);
-                    const asistente = document.querySelector(
-                        `.planning-ai-assistant[data-period="${activador.dataset.aiOpen}"]`);
-                    if (!asistente) return;
-                    activadorAsistente = activador;
-                    asistente.inert = false;
-                    asistente.setAttribute('aria-hidden', 'false');
-                    asistente.classList.add('is-open');
-                    if (fondoAsistente) fondoAsistente.hidden = false;
-                    asistente.querySelector('.planning-ai-close')?.focus();
-                });
-            });
-
-            document.querySelectorAll('.planning-ai-close').forEach(boton => {
-                boton.addEventListener('click', () => cerrarAsistente());
-            });
-            fondoAsistente?.addEventListener('click', () => cerrarAsistente());
-
             document.addEventListener('click', evento => {
                 if (!evento.target.closest('.planning-catalog-select')) {
                     selectoresCatalogo.forEach(selector => selector.cerrar());
                 }
             });
             document.addEventListener('keydown', evento => {
-                if (evento.key === 'Escape') {
-                    selectoresCatalogo.forEach(selector => selector.cerrar());
-                    cerrarAsistente();
+                if (evento.key !== 'Escape') return;
+                selectoresCatalogo.forEach(selector => selector.cerrar());
+                if (copiloto && !copiloto.hidden && copiloto.contains(document.activeElement)) cerrarCopiloto();
+            });
+
+            if (!copiloto) return;
+
+            const etiquetasCampos = {
+                tema: 'Tema',
+                recursos: 'Recursos',
+                experiencia: 'Experiencia',
+                dua_experiencia: 'DUA de la experiencia',
+                reflexion: 'Reflexión',
+                dua_reflexion: 'DUA de la reflexión',
+                conceptualizacion: 'Conceptualización',
+                dua_conceptualizacion: 'DUA de la conceptualización',
+                aplicacion: 'Aplicación',
+                dua_aplicacion: 'DUA de la aplicación',
+                tecnica_evaluacion: 'Técnica de evaluación',
+                instrumento_evaluacion: 'Instrumento de evaluación'
+            };
+            const camposEnfocables = camposGenerados.filter(campo => campo !== 'tema');
+            const estadoCopiloto = copiloto.querySelector('.copilot-status');
+            const listaCambios = copiloto.querySelector('.copilot-changes');
+            const cambiosPendientes = new Map();
+            let aplicandoCambio = false;
+            let activadorCopiloto = null;
+
+            const numeroBloque = periodo => String(Number(periodo) + 1).padStart(2, '0');
+
+            const mostrarEstado = (mensaje, tipo = '') => {
+                estadoCopiloto.hidden = !mensaje;
+                estadoCopiloto.className = `copilot-status${tipo ? ` is-${tipo}` : ''}`;
+                estadoCopiloto.textContent = mensaje;
+            };
+
+            const irABloque = periodo => {
+                document.getElementById(`bloque-${periodo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            };
+
+            const abrirCopiloto = (periodo, enfoque = '', activador = null) => {
+                copilotoBloque.value = String(periodo);
+                copilotoEnfoque.value = enfoque;
+                activadorCopiloto = activador;
+                copiloto.hidden = false;
+                document.body.classList.add('copilot-open');
+                actualizarBotonIa(periodo);
+                if (enfoque) {
+                    document.getElementById(`periodos_${periodo}_${enfoque}`)?.closest('.field')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    irABloque(periodo);
                 }
-                if (evento.key === 'Tab') {
-                    const abierto = document.querySelector('.planning-ai-assistant.is-open');
-                    if (!abierto) return;
-                    const elementos = [...abierto.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')]
-                        .filter(elemento => elemento.getClientRects().length > 0);
-                    const primero = elementos[0];
-                    const ultimo = elementos[elementos.length - 1];
-                    if (evento.shiftKey && document.activeElement === primero) {
-                        evento.preventDefault();
-                        ultimo?.focus();
-                    } else if (!evento.shiftKey && document.activeElement === ultimo) {
-                        evento.preventDefault();
-                        primero?.focus();
-                    }
+                copiloto.querySelector('#copilot-indicaciones').focus({ preventScroll: true });
+            };
+
+            const cerrarCopiloto = () => {
+                copiloto.hidden = true;
+                document.body.classList.remove('copilot-open');
+                activadorCopiloto?.focus({ preventScroll: true });
+                activadorCopiloto = null;
+            };
+
+            document.querySelectorAll('[data-ai-open]').forEach(activador => {
+                activador.addEventListener('click', () => abrirCopiloto(activador.dataset.aiOpen, '', activador));
+            });
+            copiloto.querySelector('.copilot-close').addEventListener('click', cerrarCopiloto);
+            copilotoBloque.addEventListener('change', () => {
+                actualizarBotonIa(copilotoBloque.value);
+                irABloque(copilotoBloque.value);
+            });
+            copilotoEnfoque.addEventListener('change', () => {
+                actualizarBotonIa(copilotoBloque.value);
+                const enfoque = copilotoEnfoque.value;
+                if (enfoque) {
+                    document.getElementById(`periodos_${copilotoBloque.value}_${enfoque}`)?.closest('.field')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
 
-            document.querySelectorAll('.planning-ai-button').forEach(boton => {
-                boton.addEventListener('click', async () => {
-                    if (generacionIaActiva) return;
-                    generacionIaActiva = true;
-                    document.querySelectorAll('.planning-ai-button').forEach(candidato => candidato.disabled = true);
-                    const asistente = boton.closest('.planning-ai-assistant');
-                    const periodo = asistente.dataset.period;
-                    const { destreza, indicador } = controles(periodo);
-                    const estado = asistente.querySelector('.planning-ai-status');
-                    const etiquetaBoton = boton.querySelector('.planning-ai-button-label');
-                    const vistaPrevia = asistente.querySelector('.planning-ai-preview');
-                    const contador = asistente.querySelector('.planning-ai-timer');
-                    const contadorEtiqueta = contador?.querySelector('span');
-                    const contadorValor = contador?.querySelector('strong');
-                    const inicio = Date.now();
-                    const formatearTiempo = milisegundos => {
-                        const segundosTotales = Math.floor(milisegundos / 1000);
-                        const minutos = Math.floor(segundosTotales / 60);
-                        const segundos = segundosTotales % 60;
-                        return `${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
-                    };
-                    const actualizarContador = () => {
-                        if (contadorValor) contadorValor.textContent = formatearTiempo(Date.now() - inicio);
-                    };
-                    const intervaloContador = window.setInterval(actualizarContador, 250);
-
-                    boton.classList.add('is-loading');
-                    boton.disabled = true;
-                    etiquetaBoton.textContent = 'Preparando propuesta…';
-                    if (contador) {
-                        contador.hidden = false;
-                        contador.classList.add('is-running');
-                    }
-                    if (contadorEtiqueta) contadorEtiqueta.textContent = 'Tiempo transcurrido';
-                    actualizarContador();
-                    estado.hidden = false;
-                    estado.className = 'planning-ai-status';
-                    estado.textContent = 'El copiloto está organizando las actividades ERCA y sus apoyos DUA. Puede tardar un momento.';
-                    vistaPrevia.hidden = true;
-
-                    try {
-                        const tema = document.getElementById(`periodos_${periodo}_tema`)?.value.trim();
-                        const indicaciones = document.getElementById(`periodos_${periodo}_indicaciones_ia`)?.value.trim();
-                        const solicitud = {
-                            asignacion_id: asignacionId,
-                            destreza_curricular_id: Number(destreza.value),
-                            indicador_evaluacion_id: Number(indicador.value),
-                            duracion_minutos: Number(boton.dataset.duration),
-                            titulo_unidad: document.getElementById('titulo_unidad')?.value || null,
-                            tema: tema || null,
-                            indicaciones: indicaciones || null
-                        };
-                        const enviar = () => fetch(boton.dataset.endpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': csrf
-                            },
-                            credentials: 'same-origin',
-                            body: JSON.stringify(solicitud)
-                        });
-
-                        let respuesta = await enviar();
-                        if (respuesta.status === 419 && await actualizarCsrf()) {
-                            respuesta = await enviar();
-                        }
-                        if (respuesta.status === 419) {
-                            throw new Error('Tu sesión expiró. Copia cualquier texto que quieras conservar y recarga la página para iniciar sesión nuevamente.');
-                        }
-                        const datos = await respuesta.json().catch(() => ({}));
-                        if (!respuesta.ok) {
-                            const primerError = Object.values(datos.errors || {}).flat()[0];
-                            throw new Error(primerError || datos.message || 'No se pudo generar la propuesta.');
-                        }
-
-                        asistente.propuestaIa = datos.propuesta;
-                        asistente.querySelectorAll('[data-ai-preview]').forEach(elemento => {
-                            const valor = datos.propuesta?.[elemento.dataset.aiPreview];
-                            elemento.textContent = typeof valor === 'string' ? valor : '—';
-                        });
-                        vistaPrevia.hidden = false;
-                        estado.classList.add('is-success');
-                        estado.textContent = `Propuesta preparada en ${formatearTiempo(Date.now() - inicio)}. Revísala y elige cómo incorporarla al período.`;
-                    } catch (error) {
-                        descartarPropuesta(asistente);
-                        estado.classList.add('is-error');
-                        estado.textContent = error instanceof TypeError && /fetch/i.test(error.message)
-                            ? 'La conexión con el servidor se interrumpió mientras Gemini generaba la propuesta. Vuelve a intentarlo.'
-                            : (error.message || 'No se pudo generar la propuesta.');
-                    } finally {
-                        window.clearInterval(intervaloContador);
-                        actualizarContador();
-                        contador?.classList.remove('is-running');
-                        if (contadorEtiqueta) contadorEtiqueta.textContent = 'Tiempo total';
-                        boton.classList.remove('is-loading');
-                        etiquetaBoton.textContent = asistente.propuestaIa ? 'Preparar otra propuesta' : 'Preparar propuesta';
-                        generacionIaActiva = false;
-                        document.querySelectorAll('.planning-ai-assistant').forEach(panel => actualizarBotonIa(panel.dataset.period));
-                    }
+            document.querySelectorAll('.planning-period-card').forEach(tarjeta => {
+                const periodo = tarjeta.dataset.period;
+                camposEnfocables.forEach(campo => {
+                    const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
+                    const etiqueta = entrada ? tarjeta.querySelector(`label[for="${entrada.id}"]`) : null;
+                    if (!etiqueta) return;
+                    const disparador = document.createElement('button');
+                    disparador.type = 'button';
+                    disparador.className = 'copilot-field-trigger';
+                    disparador.textContent = '✦';
+                    disparador.title = `Preparar «${etiquetasCampos[campo]}» con el copiloto`;
+                    disparador.setAttribute('aria-label', disparador.title);
+                    disparador.addEventListener('click', evento => {
+                        evento.preventDefault();
+                        abrirCopiloto(periodo, campo, disparador);
+                    });
+                    etiqueta.append(disparador);
+                });
+                const tema = document.getElementById(`periodos_${periodo}_tema`);
+                tema?.addEventListener('input', () => {
+                    if (!aplicandoCambio && String(periodo) === copilotoBloque.value) actualizarBotonIa(periodo);
                 });
             });
 
-            document.querySelectorAll('.planning-ai-assistant').forEach(asistente => {
-                const periodo = asistente.dataset.period;
-                const estado = asistente.querySelector('.planning-ai-status');
+            const renderizarCambios = () => {
+                const lista = listaCambios.querySelector('ul');
+                lista.replaceChildren();
+                cambiosPendientes.forEach((cambio, id) => {
+                    const elemento = document.createElement('li');
+                    const ir = document.createElement('button');
+                    ir.type = 'button';
+                    ir.className = 'copilot-change-go';
+                    const bloque = document.createElement('small');
+                    bloque.textContent = `Bloque ${numeroBloque(cambio.periodo)} · `;
+                    ir.append(bloque, etiquetasCampos[cambio.campo]);
+                    ir.addEventListener('click', () => {
+                        cambio.entrada.closest('.field').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        cambio.entrada.focus({ preventScroll: true });
+                    });
+                    const descartar = document.createElement('button');
+                    descartar.type = 'button';
+                    descartar.className = 'copilot-icon-button is-discard';
+                    descartar.textContent = '✕';
+                    descartar.title = `Descartar cambio en ${etiquetasCampos[cambio.campo]}`;
+                    descartar.setAttribute('aria-label', descartar.title);
+                    descartar.addEventListener('click', () => resolverCambio(id, false));
+                    const mantener = document.createElement('button');
+                    mantener.type = 'button';
+                    mantener.className = 'copilot-icon-button is-keep';
+                    mantener.textContent = '✓';
+                    mantener.title = `Mantener cambio en ${etiquetasCampos[cambio.campo]}`;
+                    mantener.setAttribute('aria-label', mantener.title);
+                    mantener.addEventListener('click', () => resolverCambio(id, true));
+                    elemento.append(ir, descartar, mantener);
+                    lista.append(elemento);
+                });
+                listaCambios.hidden = cambiosPendientes.size === 0;
+                listaCambios.querySelector('[data-copilot-count]').textContent = cambiosPendientes.size === 1
+                    ? '1 pendiente'
+                    : `${cambiosPendientes.size} pendientes`;
+            };
 
-                const aplicar = reemplazar => {
-                    const propuesta = asistente.propuestaIa;
-                    if (!propuesta) return;
+            const escribirEnCampo = (entrada, valor) => {
+                aplicandoCambio = true;
+                entrada.value = valor;
+                entrada.dispatchEvent(new Event('input', { bubbles: true }));
+                aplicandoCambio = false;
+            };
 
-                    const camposConContenido = camposGenerados
-                        .map(campo => document.getElementById(`periodos_${periodo}_${campo}`))
-                        .filter(campo => campo?.value.trim());
-                    if (reemplazar && camposConContenido.length && !window.confirm(
-                            'Se reemplazará el contenido escrito en este período. ¿Deseas continuar?')) return;
+            function resolverCambio(id, mantener, silencioso = false) {
+                const cambio = cambiosPendientes.get(id);
+                if (!cambio) return;
+                if (!mantener) escribirEnCampo(cambio.entrada, cambio.original);
+                cambio.barra.remove();
+                cambio.anterior.remove();
+                cambio.contenedor.classList.remove('copilot-pending');
+                cambio.entrada.removeEventListener('input', cambio.alEditar);
+                cambiosPendientes.delete(id);
+                renderizarCambios();
+                if (!silencioso && cambiosPendientes.size === 0) {
+                    mostrarEstado(mantener ? 'Cambios conservados. Revisa el texto antes de guardar el borrador.' : 'Cambio descartado. El campo volvió a su texto anterior.');
+                }
+            }
 
-                    let aplicados = 0;
-                    let conservados = 0;
-                    camposGenerados.forEach(campo => {
-                        const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
-                        if (!entrada || typeof propuesta[campo] !== 'string') return;
-                        if (!reemplazar && entrada.value.trim()) {
-                            conservados++;
-                            return;
-                        }
-                        entrada.value = propuesta[campo];
-                        entrada.dispatchEvent(new Event('input', { bubbles: true }));
-                        aplicados++;
+            const proponerCambio = (periodo, campo, valor) => {
+                const entrada = document.getElementById(`periodos_${periodo}_${campo}`);
+                const contenedor = entrada?.closest('.field');
+                if (!entrada || !contenedor || typeof valor !== 'string' || valor.trim() === entrada.value.trim()) return false;
+
+                const previo = cambiosPendientes.get(entrada.id);
+                const original = previo ? previo.original : entrada.value;
+                if (previo) resolverCambio(entrada.id, true, true);
+
+                const barra = document.createElement('div');
+                barra.className = 'copilot-inline';
+                const aviso = document.createElement('span');
+                aviso.textContent = '✦ Propuesta';
+                const verAnterior = document.createElement('button');
+                verAnterior.type = 'button';
+                verAnterior.className = 'copilot-previous-toggle';
+                verAnterior.textContent = 'Ver anterior';
+                verAnterior.setAttribute('aria-expanded', 'false');
+                const descartar = document.createElement('button');
+                descartar.type = 'button';
+                descartar.className = 'copilot-discard';
+                descartar.textContent = 'Descartar';
+                const mantener = document.createElement('button');
+                mantener.type = 'button';
+                mantener.className = 'copilot-keep';
+                mantener.textContent = 'Mantener';
+                barra.append(aviso, verAnterior, descartar, mantener);
+
+                const anterior = document.createElement('div');
+                anterior.className = `copilot-previous${original.trim() ? '' : ' is-empty'}`;
+                anterior.textContent = original.trim() || 'El campo estaba vacío.';
+                anterior.hidden = true;
+
+                const etiqueta = contenedor.querySelector('label');
+                (etiqueta ?? entrada).after(barra);
+                barra.after(anterior);
+                contenedor.classList.add('copilot-pending');
+                escribirEnCampo(entrada, valor);
+
+                const alEditar = () => {
+                    if (!aplicandoCambio) resolverCambio(entrada.id, true);
+                };
+                verAnterior.addEventListener('click', () => {
+                    anterior.hidden = !anterior.hidden;
+                    verAnterior.textContent = anterior.hidden ? 'Ver anterior' : 'Ocultar anterior';
+                    verAnterior.setAttribute('aria-expanded', anterior.hidden ? 'false' : 'true');
+                });
+                descartar.addEventListener('click', () => resolverCambio(entrada.id, false));
+                mantener.addEventListener('click', () => resolverCambio(entrada.id, true));
+                entrada.addEventListener('input', alEditar);
+                cambiosPendientes.set(entrada.id, { periodo, campo, entrada, contenedor, original, barra, anterior, alEditar });
+
+                return true;
+            };
+
+            copiloto.querySelector('.copilot-keep-all').addEventListener('click', () => {
+                [...cambiosPendientes.keys()].forEach(id => resolverCambio(id, true, true));
+                mostrarEstado('Se conservaron todos los cambios. Revisa el texto antes de guardar el borrador.', 'success');
+            });
+            copiloto.querySelector('.copilot-discard-all').addEventListener('click', () => {
+                [...cambiosPendientes.keys()].forEach(id => resolverCambio(id, false, true));
+                mostrarEstado('Se descartaron todos los cambios. Los campos volvieron a su texto anterior.');
+            });
+
+            const botonGenerar = copiloto.querySelector('.copilot-generate');
+            const contador = copiloto.querySelector('.copilot-timer');
+            const formatearTiempo = milisegundos => {
+                const segundosTotales = Math.floor(milisegundos / 1000);
+                return `${String(Math.floor(segundosTotales / 60)).padStart(2, '0')}:${String(segundosTotales % 60).padStart(2, '0')}`;
+            };
+
+            botonGenerar.addEventListener('click', async () => {
+                if (generacionIaActiva) return;
+                const periodo = copilotoBloque.value;
+                const enfoque = copilotoEnfoque.value;
+                const { destreza, indicador } = controles(periodo);
+                if (!destreza?.value || !indicador?.value) return;
+
+                generacionIaActiva = true;
+                const inicio = Date.now();
+                const intervalo = window.setInterval(() => contador.textContent = formatearTiempo(Date.now() - inicio), 250);
+                const etiqueta = botonGenerar.querySelector('[data-copilot-label]');
+                botonGenerar.classList.add('is-loading');
+                botonGenerar.disabled = true;
+                copilotoBloque.disabled = true;
+                copilotoEnfoque.disabled = true;
+                etiqueta.textContent = 'Preparando…';
+                contador.textContent = '00:00';
+                contador.hidden = false;
+                mostrarEstado(enfoque
+                    ? `Redactando «${etiquetasCampos[enfoque]}» con el contexto del bloque ${numeroBloque(periodo)}…`
+                    : `Organizando las actividades ERCA y sus apoyos DUA del bloque ${numeroBloque(periodo)}. Puede tardar un momento.`);
+
+                try {
+                    const contenidoActual = Object.fromEntries(camposGenerados.map(campo => [
+                        campo, document.getElementById(`periodos_${periodo}_${campo}`)?.value.trim() || null
+                    ]));
+                    const indicaciones = copiloto.querySelector('#copilot-indicaciones').value.trim();
+                    const solicitud = {
+                        asignacion_id: asignacionId,
+                        destreza_curricular_id: Number(destreza.value),
+                        indicador_evaluacion_id: Number(indicador.value),
+                        duracion_minutos: Number(copilotoBloque.selectedOptions[0].dataset.duration),
+                        titulo_unidad: document.getElementById('titulo_unidad')?.value || null,
+                        tema: contenidoActual.tema,
+                        indicaciones: indicaciones || null,
+                        enfoque: enfoque || null,
+                        contenido_actual: contenidoActual
+                    };
+                    const enviar = () => fetch(botonGenerar.dataset.endpoint, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(solicitud)
                     });
 
-                    asistente.querySelector('.planning-ai-preview').hidden = true;
-                    estado.hidden = false;
-                    estado.className = 'planning-ai-status is-success';
-                    estado.textContent = reemplazar
-                        ? `Propuesta aplicada en ${aplicados} campos. Revísala antes de guardar.`
-                        : `Se completaron ${aplicados} campos vacíos${conservados ? ` y se conservaron ${conservados}` : ''}. Revísalos antes de guardar.`;
-                };
+                    let respuesta = await enviar();
+                    if (respuesta.status === 419 && await actualizarCsrf()) respuesta = await enviar();
+                    if (respuesta.status === 419) {
+                        throw new Error('Tu sesión expiró. Copia cualquier texto que quieras conservar y recarga la página para iniciar sesión nuevamente.');
+                    }
+                    const datos = await respuesta.json().catch(() => ({}));
+                    if (!respuesta.ok) {
+                        throw new Error(Object.values(datos.errors || {}).flat()[0] || datos.message || 'No se pudo generar la propuesta.');
+                    }
 
-                asistente.querySelector('.planning-ai-apply-empty')?.addEventListener('click', () => aplicar(false));
-                asistente.querySelector('.planning-ai-apply-all')?.addEventListener('click', () => aplicar(true));
-                asistente.querySelector('.planning-ai-discard')?.addEventListener('click', () => {
-                    descartarPropuesta(asistente);
-                    estado.hidden = false;
-                    estado.className = 'planning-ai-status';
-                    estado.textContent = 'Propuesta descartada. Puedes ajustar las indicaciones y preparar otra.';
-                });
+                    const temaLibreVisible = !document.getElementById(`periodos_${periodo}_tema_libre`)?.hidden;
+                    const camposPropuestos = Object.keys(datos.propuesta || {})
+                        .filter(campo => campo !== 'tema' || (temaLibreVisible && !contenidoActual.tema))
+                        .filter(campo => proponerCambio(periodo, campo, datos.propuesta[campo]));
+                    renderizarCambios();
+                    const primerCampo = camposPropuestos[0] && document.getElementById(`periodos_${periodo}_${camposPropuestos[0]}`);
+                    primerCampo?.closest('.field').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    mostrarEstado(camposPropuestos.length
+                        ? `${camposPropuestos.length === 1 ? 'Un cambio propuesto' : `${camposPropuestos.length} cambios propuestos`} en ${formatearTiempo(Date.now() - inicio)}. Revisa cada campo y elige Mantener o Descartar.`
+                        : 'La propuesta coincide con lo que ya tienes escrito; no hubo cambios.', 'success');
+                } catch (error) {
+                    mostrarEstado(error instanceof TypeError && /fetch/i.test(error.message)
+                        ? 'La conexión con el servidor se interrumpió mientras Gemini generaba la propuesta. Vuelve a intentarlo.'
+                        : (error.message || 'No se pudo generar la propuesta.'), 'error');
+                } finally {
+                    window.clearInterval(intervalo);
+                    botonGenerar.classList.remove('is-loading');
+                    copilotoBloque.disabled = false;
+                    copilotoEnfoque.disabled = false;
+                    contador.hidden = true;
+                    generacionIaActiva = false;
+                    actualizarBotonIa(copilotoBloque.value);
+                }
+            });
+
+            document.querySelector('.planning-form')?.addEventListener('submit', () => {
+                [...cambiosPendientes.keys()].forEach(id => resolverCambio(id, true, true));
             });
         })();
     </script>

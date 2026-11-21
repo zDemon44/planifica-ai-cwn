@@ -91,6 +91,77 @@ class AsistentePlanificacionTest extends TestCase
         });
     }
 
+    public function test_genera_solo_el_campo_enfocado_usando_el_contenido_actual_del_bloque(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::response($this->respuestaGemini((string) json_encode([
+                'aplicacion' => [
+                    'Resolver en parejas tres sucesiones numéricas con tapas de colores.',
+                    'Crear una sucesión propia y explicar a otro grupo la regla que la forma.',
+                ],
+            ]))),
+        ]);
+
+        $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'destreza_curricular_id' => $destreza->id,
+            'indicador_evaluacion_id' => $indicador->id,
+            'duracion_minutos' => 45,
+            'tema' => 'Sucesiones con tapas',
+            'enfoque' => 'aplicacion',
+            'indicaciones' => 'Trabajo en parejas.',
+            'contenido_actual' => [
+                'experiencia' => 'Observar secuencias construidas con tapas de colores.',
+                'aplicacion' => 'Completar ejercicios del libro.',
+                'recursos' => '',
+            ],
+        ]);
+
+        $respuesta->assertOk()
+            ->assertJsonPath('message', 'Propuesta generada para «Aplicación». Revísala antes de guardar el borrador.')
+            ->assertJsonPath('propuesta.aplicacion', "Resolver en parejas tres sucesiones numéricas con tapas de colores.\nCrear una sucesión propia y explicar a otro grupo la regla que la forma.")
+            ->assertJsonMissingPath('propuesta.tema')
+            ->assertJsonMissingPath('propuesta.recursos');
+        Http::assertSent(function (Request $request): bool {
+            $datos = $request->data();
+            $esquema = $datos['generationConfig']['responseJsonSchema'];
+            $prompt = $datos['contents'][0]['parts'][0]['text'];
+
+            return array_keys($esquema['properties']) === ['aplicacion']
+                && $esquema['required'] === ['aplicacion']
+                && $datos['generationConfig']['maxOutputTokens'] === 550
+                && str_contains($prompt, 'Redacta únicamente el campo «Aplicación»')
+                && str_contains($prompt, 'Experiencia: Observar secuencias construidas con tapas de colores.')
+                && str_contains($prompt, "Texto actual de «Aplicación»:\nCompletar ejercicios del libro.")
+                && str_contains($prompt, 'APLICACIÓN: proponer práctica pertinente')
+                && str_contains($prompt, 'Trabajo en parejas.')
+                && ! str_contains($prompt, 'INSTRUMENTO');
+        });
+    }
+
+    public function test_rechaza_un_enfoque_o_contenido_que_no_pertenece_al_periodo(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        Http::preventStrayRequests();
+        $datos = [
+            'asignacion_id' => $asignacion->id,
+            'destreza_curricular_id' => $destreza->id,
+            'indicador_evaluacion_id' => $indicador->id,
+            'duracion_minutos' => 45,
+        ];
+
+        $this->actingAs($docente)
+            ->postJson(route('planificaciones.asistente.periodos.store'), $datos + ['enfoque' => 'tema'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('enfoque');
+        $this->postJson(route('planificaciones.asistente.periodos.store'), $datos + ['contenido_actual' => ['otro_campo' => 'x']])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('contenido_actual');
+        Http::assertNothingSent();
+    }
+
     public function test_rechaza_un_indicador_no_relacionado_sin_consultar_a_gemini(): void
     {
         [$asignacion, $destreza, , $docente] = $this->contextoCurricular();

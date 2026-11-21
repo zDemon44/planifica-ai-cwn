@@ -26,18 +26,14 @@ class PortalCursosTest extends TestCase
             ->assertSee(route('planificaciones.index', ['asignacion_id' => $propia->id]), false);
     }
 
-    public function test_mis_materias_agrupa_cursos_y_enlaza_sus_planificaciones(): void
+    public function test_la_antigua_ruta_mis_materias_redirige_a_planificaciones(): void
     {
-        $primera = Asignacion::factory()->create();
-        $segunda = Asignacion::factory()->create(['docente_id' => $primera->docente_id, 'materia_id' => $primera->materia_id]);
-        $ajena = Asignacion::factory()->create();
-        $this->actingAs(User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $primera->docente_id]));
+        $asignacion = Asignacion::factory()->create();
+        $this->actingAs(User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]));
 
-        $this->get(route('portal-docente.index'))->assertOk()
-            ->assertSee($primera->materia->nombre)
-            ->assertSee($primera->seccion->curso->nombre)
-            ->assertSee($segunda->seccion->curso->nombre)
-            ->assertDontSee($ajena->materia->nombre)
-            ->assertSee(route('planificaciones.index', ['asignacion_id' => $primera->id]), false);
+        $this->get('/mis-cursos')->assertMovedPermanently()->assertRedirect('/planificaciones');
+        $this->get(route('dashboard'))->assertOk()
+            ->assertDontSee('Mis materias')
+            ->assertSee(route('planificaciones.index'), false);
     }
 }

@@ -5,7 +5,7 @@
     @endphp
     <div class="page-heading">
         <div><p class="eyebrow">MI ESPACIO DOCENTE</p><h1>Hola, {{ auth()->user()->name }}</h1><p>Organiza las planificaciones semanales de tus materias asignadas.</p></div>
-        <a class="secondary-button" href="{{ route('portal-docente.index') }}">Ver mis materias</a>
+        <a class="secondary-button" href="{{ route('planificaciones.index') }}">Ver planificaciones</a>
     </div>
 
     @if($devueltas->isNotEmpty())

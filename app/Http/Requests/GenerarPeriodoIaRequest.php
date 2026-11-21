@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Services\GeneradorPeriodoPlanificacion;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class GenerarPeriodoIaRequest extends FormRequest
 {
@@ -21,6 +23,9 @@ class GenerarPeriodoIaRequest extends FormRequest
             'titulo_unidad' => ['nullable', 'string', 'max:255'],
             'tema' => ['nullable', 'string', 'max:500'],
             'indicaciones' => ['nullable', 'string', 'max:600'],
+            'enfoque' => ['nullable', 'string', Rule::in(GeneradorPeriodoPlanificacion::CAMPOS_ENFOCABLES)],
+            'contenido_actual' => ['nullable', 'array:'.implode(',', GeneradorPeriodoPlanificacion::CAMPOS)],
+            'contenido_actual.*' => ['nullable', 'string', 'max:5000'],
         ];
     }
 
@@ -30,6 +35,7 @@ class GenerarPeriodoIaRequest extends FormRequest
             'required' => 'Selecciona la destreza y su indicador antes de generar el período.',
             'exists' => 'La selección curricular no es válida.',
             'duracion_minutos.multiple_of' => 'La duración debe corresponder a períodos de 45 minutos.',
+            'enfoque.in' => 'Elige un campo válido del período.',
         ];
     }
 }

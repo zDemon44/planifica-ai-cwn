@@ -4,8 +4,10 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
+| {app/**,routes/**,resources/views/**} | .ai/rules/app-views.md |
 | app/** | .ai/rules/app.md |
 | app/Http/Controllers/HorarioController.php,resources/views/Horarios/**,resources/views/components/barra-lateral.blade.php | .ai/rules/components.md |
+| {resources/views/Planificaciones/form.blade.php,app/Services/GeneradorPeriodoPlanificacion.php,app/Http/Controllers/AsistentePlanificacionController.php} | .ai/rules/controllers.md |
 | {public/css/**,resources/views/**} | .ai/rules/css-views.md |
 | app/{Actions,Models,Http/Controllers,Http/Requests}/**/*.php,resources/views/Planificaciones/**,tests/Feature/PlanificacionesTest.php | .ai/rules/feature.md |
 | app/{Models,Http/Controllers,Http/Requests,Policies}/**/*.php | .ai/rules/requests-policies.md |

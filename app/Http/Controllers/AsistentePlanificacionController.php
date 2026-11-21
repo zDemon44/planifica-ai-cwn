@@ -47,6 +47,8 @@ class AsistentePlanificacionController extends Controller
             ], 422);
         }
 
+        $enfoque = $request->validated('enfoque');
+
         try {
             $propuesta = $generador->generar(
                 $asignacion,
@@ -56,6 +58,8 @@ class AsistentePlanificacionController extends Controller
                 $request->string('titulo_unidad')->trim()->toString() ?: null,
                 $request->string('tema')->trim()->toString() ?: null,
                 $request->string('indicaciones')->trim()->toString() ?: null,
+                $enfoque,
+                $request->validated('contenido_actual') ?? [],
             );
         } catch (UnexpectedValueException $exception) {
             report($exception);
@@ -84,7 +88,9 @@ class AsistentePlanificacionController extends Controller
         }
 
         return response()->json([
-            'message' => 'Propuesta generada. Revísala antes de guardar el borrador.',
+            'message' => $enfoque
+                ? 'Propuesta generada para «'.GeneradorPeriodoPlanificacion::ETIQUETAS[$enfoque].'». Revísala antes de guardar el borrador.'
+                : 'Propuesta generada. Revísala antes de guardar el borrador.',
             'propuesta' => $propuesta,
         ]);
     }

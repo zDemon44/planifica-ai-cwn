@@ -13,13 +13,6 @@
                     @if(request()->routeIs('dashboard')) aria-current="page" @endif>
                     <svg aria-hidden="true"><use href="#i-grid"/></svg><span class="nav-label">Panel principal</span>
                 </a>
-                @if(auth()->user()->role === 'DOCENTE')
-                    <a class="nav-item {{ request()->routeIs('portal-docente.*') ? 'active' : '' }}"
-                        href="{{ route('portal-docente.index') }}" data-sidebar-label="Mis materias"
-                        @if(request()->routeIs('portal-docente.*')) aria-current="page" @endif>
-                        <svg aria-hidden="true"><use href="#i-book"/></svg><span class="nav-label">Mis materias</span>
-                    </a>
-                @endif
                 @if(auth()->user()->role === 'SUPERADMIN')
                     <a class="nav-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}"
                         href="{{ route('usuarios.index') }}" data-sidebar-label="Usuarios"
