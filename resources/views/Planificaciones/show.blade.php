@@ -86,7 +86,7 @@
                         <td colspan="2">{{ $planificacion->asignacion->seccion->curso->nombre }} “{{ $planificacion->asignacion->seccion->nombre }}”</td>
                         <th>Trimestre:</th><td colspan="2">{{ $nombreTrimestre }}</td>
                         <th>Título de la unidad:</th><td colspan="3">{{ $planificacion->titulo_unidad ?: '—' }}</td>
-                        <th>Jornada:</th><td>{{ ucfirst($planificacion->jornada) }}</td>
+                        <th>Jornada:</th><td>{{ $planificacion->jornada }}</td>
                     </tr>
                     <tr>
                         <th>Semana:</th><td>{{ $planificacion->numero_semana }}</td>

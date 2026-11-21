@@ -14,6 +14,8 @@ class Planificacion extends Model
     /** @use HasFactory<PlanificacionFactory> */
     use HasFactory;
 
+    public const JORNADA_INSTITUCIONAL = 'Matutina - Vespertina';
+
     public const ESTADOS = [
         'borrador' => 'Borrador',
         'en_revision' => 'En revisión',

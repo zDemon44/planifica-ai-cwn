@@ -415,6 +415,7 @@ h1 { font-size: 27px; font-weight: 600; letter-spacing: -.9px; margin: 0; }
 .dash-week-list li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid #edf1f6; }
 .dash-week-copy { flex: 1; min-width: 0; }
 .dash-week-list .primary-button, .dash-week-list .secondary-button { padding: 7px 14px; font-size: 11px; flex: none; }
+.dash-subject-card h2 { font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
 @media (max-width: 1150px) { .dash-grid { grid-template-columns: 1fr; } .dash-side { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 700px) {
     .dash-side { grid-template-columns: 1fr; }

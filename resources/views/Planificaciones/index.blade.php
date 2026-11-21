@@ -62,23 +62,82 @@
         </div>
         @if(session('success'))<p class="success-message" role="status">{{ session('success') }}</p>@endif
         @if($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado)
-            <section class="panel planning-pending-weeks">
-                <div class="panel-heading"><div><h2>Planificaciones por llenar</h2><p>Se muestran únicamente semanas con clases. Los días suspendidos ya están excluidos de sus bloques.</p></div><span class="planning-pending-total">{{ $semanasPendientes->count() }} pendientes</span></div>
-                @if($semanasPendientes->isEmpty())
-                    <div class="planning-week-empty">No quedan semanas lectivas pendientes para esta materia.</div>
+            @php
+                $hoy = now()->format('Y-m-d');
+                $semanasPorTrimestre = $semanasPeriodo->groupBy('trimestre');
+                $trimestreActivo = $semanasPeriodo->first(fn (array $semana): bool => $semana['fin'] >= $hoy)['trimestre'] ?? $semanasPorTrimestre->keys()->last();
+                $planificadas = $semanasPeriodo->count() - $semanasPendientes->count();
+                $atrasadas = $semanasPendientes->filter(fn (array $semana): bool => $semana['fin'] < $hoy)->count();
+            @endphp
+            <section class="panel planning-weeks" aria-labelledby="semanas-titulo">
+                <div class="planning-weeks-header">
+                    <div>
+                        <h2 id="semanas-titulo">Semanas del período</h2>
+                        <p>Solo semanas con clases de esta materia. Al elegir una pendiente, el formulario ya llega con sus fechas y bloques.</p>
+                    </div>
+                    <dl class="planning-weeks-summary">
+                        <div><dt>Planificadas</dt><dd>{{ $planificadas }}<small>/{{ $semanasPeriodo->count() }}</small></dd></div>
+                        <div><dt>Pendientes</dt><dd>{{ $semanasPendientes->count() }}</dd></div>
+                        @if($atrasadas > 0)<div class="is-late"><dt>Atrasadas</dt><dd>{{ $atrasadas }}</dd></div>@endif
+                    </dl>
+                </div>
+                <div class="planning-weeks-progress" role="progressbar" aria-label="Semanas planificadas" aria-valuemin="0" aria-valuemax="{{ $semanasPeriodo->count() }}" aria-valuenow="{{ $planificadas }}">
+                    <span style="width: {{ $semanasPeriodo->count() ? round($planificadas * 100 / $semanasPeriodo->count()) : 0 }}%"></span>
+                </div>
+
+                @if($semanasPeriodo->isEmpty())
+                    <div class="planning-week-empty">No hay semanas con clases para esta materia. Revisa que el horario y el cronograma estén configurados.</div>
                 @else
-                    <div class="planning-trimester-list">
-                        @foreach($semanasPendientes->groupBy('trimestre') as $trimestre => $semanasTrimestre)
-                            <details class="planning-trimester-group" @if($loop->first) open @endif>
-                                <summary><span>Trimestre {{ $trimestre }}</span><small>{{ $semanasTrimestre->count() }} {{ $semanasTrimestre->count() === 1 ? 'semana pendiente' : 'semanas pendientes' }}</small></summary>
-                                <div class="planning-week-grid">
+                    <div class="planning-trimester-tabs">
+                        @foreach($semanasPorTrimestre as $trimestre => $semanasTrimestre)
+                            <input class="planning-tab-input" type="radio" name="trimestre_semanas" id="trimestre-semanas-{{ $trimestre }}" @checked($trimestre == $trimestreActivo)>
+                        @endforeach
+                        <div class="planning-tab-list">
+                            @foreach($semanasPorTrimestre as $trimestre => $semanasTrimestre)
+                                @php
+                                    $pendientesTrimestre = $semanasTrimestre->whereNull('planificacion')->count();
+                                @endphp
+                                <label for="trimestre-semanas-{{ $trimestre }}" class="planning-tab planning-tab-{{ $trimestre }}">
+                                    Trimestre {{ $trimestre }}
+                                    <small>{{ $pendientesTrimestre === 0 ? 'Completo' : $pendientesTrimestre.' por llenar' }}</small>
+                                </label>
+                            @endforeach
+                        </div>
+                        @foreach($semanasPorTrimestre as $trimestre => $semanasTrimestre)
+                            <div class="planning-tab-panel planning-tab-panel-{{ $trimestre }}">
+                                <ol class="planning-week-calendar">
                                     @foreach($semanasTrimestre as $semana)
-                                        <a href="{{ route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id, 'fecha_inicio' => $semana['inicio']]) }}"><span>Semana {{ $semana['numero'] }}</span><strong>{{ Carbon\Carbon::parse($semana['inicio'])->format('d/m') }} – {{ Carbon\Carbon::parse($semana['fin'])->format('d/m/Y') }}</strong><small>{{ $semana['bloques']->count() }} bloques por llenar</small></a>
+                                        @php
+                                            $planificacion = $semana['planificacion'];
+                                            $inicio = Carbon\Carbon::parse($semana['inicio']);
+                                            $fin = Carbon\Carbon::parse($semana['fin']);
+                                            $esActual = $inicio->copy()->startOfWeek()->format('Y-m-d') <= $hoy && $inicio->copy()->startOfWeek()->addDays(6)->format('Y-m-d') >= $hoy;
+                                            $estadoSemana = $planificacion ? $planificacion->estado : ($semana['fin'] < $hoy ? 'atrasada' : 'pendiente');
+                                            $etiquetaEstado = $planificacion ? App\Models\Planificacion::ESTADOS[$planificacion->estado] : ($estadoSemana === 'atrasada' ? 'Atrasada' : 'Por planificar');
+                                        @endphp
+                                        <li>
+                                            <a class="planning-week-tile is-{{ $estadoSemana }} {{ $esActual ? 'is-current' : '' }}"
+                                                href="{{ $planificacion ? route('planificaciones.show', $planificacion->id) : route('planificaciones.create', ['asignacion_id' => $asignacionSeleccionada->id, 'fecha_inicio' => $semana['inicio']]) }}"
+                                                aria-label="Semana {{ $semana['numero'] }}, del {{ $inicio->locale('es')->isoFormat('D [de] MMMM') }} al {{ $fin->locale('es')->isoFormat('D [de] MMMM') }}: {{ $etiquetaEstado }}{{ $esActual ? ', semana actual' : '' }}">
+                                                <span class="planning-week-number"><small>Semana</small>{{ $semana['numero'] }}</span>
+                                                <span class="planning-week-dates">{{ $inicio->format('j') }}{{ $inicio->month !== $fin->month ? ' '.$inicio->locale('es')->isoFormat('MMM') : '' }} – {{ $fin->locale('es')->isoFormat('D MMM') }}</span>
+                                                <span class="planning-week-state">{{ $esActual && ! $planificacion ? 'Esta semana' : $etiquetaEstado }}</span>
+                                            </a>
+                                        </li>
                                     @endforeach
-                                </div>
-                            </details>
+                                </ol>
+                            </div>
                         @endforeach
                     </div>
+                    <ul class="planning-week-legend" aria-label="Leyenda de estados">
+                        <li><span class="is-pendiente"></span>Por planificar</li>
+                        <li><span class="is-atrasada"></span>Atrasada</li>
+                        <li><span class="is-borrador"></span>Borrador</li>
+                        <li><span class="is-en_revision"></span>En revisión</li>
+                        <li><span class="is-devuelta"></span>Devuelta</li>
+                        <li><span class="is-aprobada"></span>Aprobada</li>
+                        <li><span class="is-current-key"></span>Semana actual</li>
+                    </ul>
                 @endif
             </section>
         @endif

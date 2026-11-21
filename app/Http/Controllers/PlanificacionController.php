@@ -60,10 +60,14 @@ class PlanificacionController extends Controller
             ->orderByDesc('fecha_inicio')->orderByDesc('id')->paginate(12)->withQueryString();
 
         $semanasPendientes = collect();
+        $semanasPeriodo = collect();
         if ($asignacionSeleccionada && ! $asignacionSeleccionada->seccion->periodo->cerrado) {
-            $fechasRegistradas = Planificacion::where('asignacion_id', $asignacionSeleccionada->id)->pluck('fecha_inicio')->map(fn ($fecha) => Carbon::parse($fecha)->format('Y-m-d'));
-            $semanasPendientes = $this->calendario->semanas($asignacionSeleccionada)
-                ->reject(fn (array $semana): bool => $fechasRegistradas->contains($semana['inicio']))->values();
+            $registradas = Planificacion::where('asignacion_id', $asignacionSeleccionada->id)
+                ->get(['id', 'fecha_inicio', 'estado'])
+                ->keyBy(fn (Planificacion $planificacion): string => $planificacion->fecha_inicio->format('Y-m-d'));
+            $semanasPeriodo = $this->calendario->semanas($asignacionSeleccionada)
+                ->map(fn (array $semana): array => $semana + ['planificacion' => $registradas->get($semana['inicio'])]);
+            $semanasPendientes = $semanasPeriodo->whereNull('planificacion')->values();
         }
 
         return view('Planificaciones.index', [
@@ -73,6 +77,7 @@ class PlanificacionController extends Controller
             'asignaciones' => $asignaciones,
             'asignacionSeleccionada' => $asignacionSeleccionada,
             'semanasPendientes' => $semanasPendientes,
+            'semanasPeriodo' => $semanasPeriodo,
         ]);
     }
 
@@ -104,9 +109,6 @@ class PlanificacionController extends Controller
             return [$asignacion->id => [
                 'periodos' => $bloques->sum(fn (array $bloque): int => $bloque['numero_fin'] - $bloque['numero_inicio'] + 1),
                 'detalle' => $bloques->map(fn (array $bloque): string => $bloque['dia'].' '.$bloque['hora_inicio'].'–'.$bloque['hora_fin'])->implode(' · '),
-                'jornada' => $bloques->isNotEmpty() && substr((string) $bloques->min('hora_inicio'), 0, 5) >= '12:00'
-                    ? 'vespertina'
-                    : 'matutina',
                 'bloques' => $bloques->all(),
             ]];
         });
@@ -144,9 +146,6 @@ class PlanificacionController extends Controller
                 ]),
             ])
             : ($semanaSeleccionada['bloques'] ?? collect($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['bloques'] : []));
-
-        $jornadaSugerida = $planificacion->jornada
-            ?? ($asignacionSeleccionada ? $resumenHorarios[$asignacionSeleccionada->id]['jornada'] : 'matutina');
 
         $grado = $asignacionSeleccionada?->seccion?->curso?->grado;
         $objetivosCurriculares = collect();
@@ -211,7 +210,7 @@ class PlanificacionController extends Controller
             ])->all();
         }
 
-        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'jornadaSugerida', 'grado', 'objetivosCurriculares', 'objetivosSeleccionados', 'destrezasCurriculares', 'indicadoresPorDestreza', 'unidadesLibro', 'catalogoUnidades', 'semanaSeleccionada'));
+        return view('Planificaciones.form', compact('planificacion', 'asignaciones', 'resumenHorarios', 'asignacionSeleccionada', 'bloquesPlanificacion', 'grado', 'objetivosCurriculares', 'objetivosSeleccionados', 'destrezasCurriculares', 'indicadoresPorDestreza', 'unidadesLibro', 'catalogoUnidades', 'semanaSeleccionada'));
     }
 
     public function show(Planificacion $planificacion): View
@@ -243,6 +242,7 @@ class PlanificacionController extends Controller
             $datos['objetivos_aprendizaje'] = $objetivosTexto;
             $datos['unidad_libro_id'] = $unidadLibro?->id;
             $datos['titulo_unidad'] = $tituloUnidad;
+            $datos['jornada'] = Planificacion::JORNADA_INSTITUCIONAL;
             $planificacion = Planificacion::create($datos);
             $planificacion->objetivosCurriculares()->sync($objetivoIds);
             $planificacion->periodos()->createMany($periodos->values()->map(
@@ -278,6 +278,7 @@ class PlanificacionController extends Controller
             $datos['objetivos_aprendizaje'] = $objetivosTexto;
             $datos['unidad_libro_id'] = $unidadLibro?->id;
             $datos['titulo_unidad'] = $tituloUnidad;
+            $datos['jornada'] = Planificacion::JORNADA_INSTITUCIONAL;
             $registro->fill($datos);
             $registro->version++;
             $registro->save();

@@ -34,7 +34,7 @@ class PlanificacionFactory extends Factory
             'asignacion_id' => Asignacion::factory(),
             'trimestre' => 1,
             'titulo_unidad' => 'Conocemos y cuidamos nuestro entorno',
-            'jornada' => 'matutina',
+            'jornada' => Planificacion::JORNADA_INSTITUCIONAL,
             'numero_semana' => 1,
             'fecha_inicio' => '2026-06-01',
             'fecha_fin' => '2026-06-05',

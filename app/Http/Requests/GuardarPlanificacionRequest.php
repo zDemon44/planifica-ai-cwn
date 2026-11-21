@@ -29,7 +29,7 @@ class GuardarPlanificacionRequest extends FormRequest
             'unidad_libro_id' => ['nullable', 'integer', 'exists:unidades_libro,id'],
             'trimestre' => ['required', 'integer', 'between:1,3'],
             'titulo_unidad' => ['nullable', 'string', 'max:255'],
-            'jornada' => ['required', Rule::in(['matutina', 'vespertina'])],
+            'jornada' => ['prohibited'],
             'numero_semana' => ['required', 'integer', 'between:1,53', Rule::unique('planificaciones', 'numero_semana')
                 ->where('asignacion_id', $this->input('asignacion_id'))
                 ->ignore($planificacion instanceof Planificacion ? $planificacion->id : null)],

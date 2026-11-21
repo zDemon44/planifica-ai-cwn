@@ -29,10 +29,13 @@ class PlanificacionesTest extends TestCase
         $administrador = User::factory()->create(['role' => 'ADMIN']);
         $this->actingAs($docente);
 
-        $this->get(route('planificaciones.create'))->assertSee('Objetivos de aprendizaje');
+        $this->get(route('planificaciones.create'))
+            ->assertSee('Objetivos de aprendizaje')
+            ->assertDontSee('name="jornada"', false);
         $this->post(route('planificaciones.store'), $this->datos($asignacion))->assertSessionHasNoErrors();
         $planificacion = Planificacion::sole();
         $this->assertSame('borrador', $planificacion->estado);
+        $this->assertSame(Planificacion::JORNADA_INSTITUCIONAL, $planificacion->jornada);
         $objetivo = ObjetivoCurricular::where('materia_id', $asignacion->materia_id)->sole();
         $this->assertDatabaseHas('objetivo_planificacion', [
             'planificacion_id' => $planificacion->id,
@@ -196,7 +199,8 @@ class PlanificacionesTest extends TestCase
 
         $formulario->assertSee('Unidad 1 · Curiosidades matemáticas')
             ->assertSee('Se asignan automáticamente según la unidad del libro.')
-            ->assertSee('Tema libre del docente');
+            ->assertSee('Tema libre')
+            ->assertDontSee('id="periodos_0_tema_libre" hidden', false);
 
         $datos['unidad_libro_id'] = $unidad->id;
         $datos['objetivo_curricular_ids'] = [$objetivoManual->id];
@@ -230,6 +234,14 @@ class PlanificacionesTest extends TestCase
             'tema_libro_id' => null,
             'tema' => 'Tema de la clase',
         ]);
+
+        $edicion = $this->get(route('planificaciones.edit', $planificacion));
+
+        $edicion->assertOk()
+            ->assertSee('Tema 1 · Sucesiones numéricas crecientes')
+            ->assertSee('name="periodos[0][tema]"', false);
+        $this->assertMatchesRegularExpression('/id="periodos_0_tema_libre"\s+hidden\s*>/', $edicion->getContent());
+        $this->assertDoesNotMatchRegularExpression('/id="periodos_1_tema_libre"\s+hidden\s*>/', $edicion->getContent());
     }
 
     public function test_rechaza_un_tema_que_no_pertenece_a_la_unidad_seleccionada(): void
@@ -281,6 +293,25 @@ class PlanificacionesTest extends TestCase
             ->assertDontSee("Semana {$planLengua->numero_semana}")
             ->assertDontSee('<label for="estado">', false)
             ->assertDontSee('+ Nueva planificación');
+    }
+
+    public function test_semanas_del_periodo_muestran_estado_y_enlazan_al_formulario_con_su_fecha(): void
+    {
+        $this->travelTo('2026-11-18 09:00:00');
+        $asignacion = Asignacion::factory()->create();
+        $horario = Horario::factory()->create(['docente_id' => $asignacion->docente_id, 'seccion_id' => $asignacion->seccion_id]);
+        BloqueHorario::factory()->create(['horario_id' => $horario->id, 'materia_id' => $asignacion->materia_id, 'dia_semana' => 1]);
+        $registrada = Planificacion::factory()->create(['asignacion_id' => $asignacion->id, 'estado' => 'en_revision', 'numero_semana' => 34, 'fecha_inicio' => '2026-11-16', 'fecha_fin' => '2026-11-20']);
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+
+        $this->actingAs($docente)->get(route('planificaciones.index', ['asignacion_id' => $asignacion->id]))
+            ->assertOk()
+            ->assertSee('Semanas del período')
+            ->assertSee(route('planificaciones.create', ['asignacion_id' => $asignacion->id, 'fecha_inicio' => '2026-11-23']))
+            ->assertDontSee(route('planificaciones.create', ['asignacion_id' => $asignacion->id, 'fecha_inicio' => '2026-11-16']))
+            ->assertSee(route('planificaciones.show', $registrada), false)
+            ->assertSee('planning-week-tile is-en_revision is-current', false)
+            ->assertSee('Atrasada');
     }
 
     public function test_nueva_planificacion_desde_materia_lleva_asignacion_fija_y_protege_ajenas(): void
@@ -469,7 +500,6 @@ class PlanificacionesTest extends TestCase
             'asignacion_id' => $asignacion->id,
             'trimestre' => 1,
             'titulo_unidad' => 'Conocemos y cuidamos nuestro entorno',
-            'jornada' => 'matutina',
             'numero_semana' => 4,
             'fecha_inicio' => '2026-06-01',
             'fecha_fin' => '2026-06-05',

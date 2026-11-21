@@ -74,9 +74,9 @@
     <div class="section-heading"><h2>Tus materias</h2><span>Períodos abiertos</span></div>
     <div class="course-grid">
         @forelse($asignaciones as $asignacion)
-            <article class="panel course-card">
-                <div class="course-card-labels"><span class="course-badge">{{ $asignacion->materia->nombre }}</span><span class="muted">{{ $asignacion->planificaciones_count }} planificaciones</span></div>
-                <h2>{{ $asignacion->seccion->curso->nombre }} <span>· {{ $asignacion->seccion->nombre }}</span></h2>
+            <article class="panel course-card dash-subject-card">
+                <div class="course-card-labels"><span class="course-badge">{{ $asignacion->seccion->curso->nombre }} · {{ $asignacion->seccion->nombre }}</span><span class="muted">{{ $asignacion->planificaciones_count }} planificaciones</span></div>
+                <h2>{{ $asignacion->materia->nombre }}</h2>
                 <p class="muted">{{ $asignacion->seccion->periodo->nombre }} · {{ $asignacion->aprobadas_count }} aprobadas</p>
                 <div class="course-card-footer teacher-course-actions">
                     <a class="primary-button" href="{{ route('planificaciones.index', ['asignacion_id' => $asignacion->id]) }}">Ver planificaciones</a>

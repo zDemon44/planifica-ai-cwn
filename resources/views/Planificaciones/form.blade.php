@@ -91,14 +91,14 @@
         @if ($planificacion->exists)
             @method('PUT')<input type="hidden" name="version" value="{{ $planificacion->version }}">
         @endif
-        <section class="panel">
+        <section class="panel planning-overview-panel">
             <div class="planning-section-heading"><span>01</span>
                 <div>
-                    <h2>Datos informativos</h2>
-                    <p>Completa los datos que dependen del docente.</p>
+                    <h2>Información de la planificación</h2>
+                    <p>Selecciona la unidad y revisa los objetivos de aprendizaje de la semana.</p>
                 </div>
             </div>
-            <div class="planning-fields">
+            <div class="planning-fields planning-info-fields">
                 @if ($asignacionSeleccionada)
                     <input type="hidden" name="asignacion_id" value="{{ $asignacionSeleccionada->id }}">
                     <input type="hidden" name="trimestre" value="{{ $trimestreInformativo }}">
@@ -152,30 +152,19 @@
                         @enderror
                     </div>
                 @endif
-                <div class="field"><label for="jornada">Jornada *</label><select id="jornada" name="jornada"
-                        required>
-                        <option value="matutina" @selected(old('jornada', $jornadaSugerida) === 'matutina')>Matutina</option>
-                        <option value="vespertina" @selected(old('jornada', $jornadaSugerida) === 'vespertina')>Vespertina</option>
-                    </select>
-                    @error('jornada')
-                        <small class="field-error">{{ $message }}</small>
-                    @enderror
-                </div>
             </div>
-        </section>
 
-        <section class="panel">
-            <div class="planning-section-heading"><span>02</span>
+            <div class="planning-subsection-heading">
+                <span aria-hidden="true"></span>
                 <div>
-                    <h2>Aprendizaje disciplinar</h2>
-                    <p>Información general de la semana</p>
+                    <h3>Aprendizaje disciplinar</h3>
+                    <p>Objetivos que orientarán el trabajo de la semana.</p>
                 </div>
             </div>
             @if ($unidadesLibro->isNotEmpty())
                 <div class="planning-objectives planning-objectives-automatic">
                     <div class="planning-objectives-heading">
                         <div><strong>Objetivos de aprendizaje</strong><small>Se asignan automáticamente según la unidad del libro.</small></div>
-                        <span class="planning-automatic-badge">Automático</span>
                     </div>
                     <div id="objetivos-unidad" class="planning-unit-objectives">
                         @forelse($unidadLibroSeleccionada?->objetivos ?? collect() as $objetivo)
@@ -251,7 +240,7 @@
         </section>
 
         <section class="panel">
-            <div class="planning-section-heading"><span>03</span>
+            <div class="planning-section-heading"><span>02</span>
                 <div>
                     <h2>Desarrollo por bloques</h2>
                     <p>Las horas consecutivas comparten un solo conjunto de actividades.</p>
@@ -307,19 +296,23 @@
                             $indicadoresDisponibles =
                                 $destrezasCurriculares->firstWhere('id', $destrezaSeleccionada)?->indicadores ??
                                 collect();
+                            $temaLibroActual = $temaLibroSeleccionado
+                                ? $unidadLibroSeleccionada?->temas->firstWhere('id', $temaLibroSeleccionado)
+                                : null;
+                            $usaLibro = $unidadesLibro->isNotEmpty();
                         @endphp
-                        <section class="planning-period-topic">
+                        <section class="planning-period-topic {{ $usaLibro ? 'has-book' : '' }}">
                             <div class="planning-period-field-heading">
                                 <span>01</span>
-                                <div><strong>Tema del período</strong><small>Selecciona un tema del libro o escribe uno libre.</small></div>
+                                <div><strong>Tema del período</strong><small>{{ $usaLibro ? 'Elige un tema del libro o escribe uno propio.' : 'Escribe el tema que se desarrollará en este bloque.' }}</small></div>
                             </div>
-                            @if ($unidadesLibro->isNotEmpty())
+                            @if ($usaLibro)
                                 <div class="field planning-book-topic">
-                                    <label for="periodos_{{ $indice }}_tema_libro">Origen del tema</label>
+                                    <label for="periodos_{{ $indice }}_tema_libro">Tema del libro</label>
                                     <select id="periodos_{{ $indice }}_tema_libro"
                                         class="book-topic-select" name="periodos[{{ $indice }}][tema_libro_id]"
                                         data-period="{{ $indice }}" data-selected="{{ $temaLibroSeleccionado }}">
-                                        <option value="">Tema libre del docente</option>
+                                        <option value="">Tema libre</option>
                                         @foreach ($unidadLibroSeleccionada?->temas ?? collect() as $temaLibro)
                                             <option value="{{ $temaLibro->id }}" @selected($temaLibroSeleccionado === $temaLibro->id)
                                                 @disabled(!$temaLibro->destreza_curricular_id || !$temaLibro->indicador_evaluacion_id)>
@@ -327,16 +320,16 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <small class="planning-topic-hint">Los temas del libro completan automáticamente la destreza y el indicador.</small>
                                     @error("periodos.$indice.tema_libro_id")
                                         <small class="field-error">{{ $message }}</small>
                                     @enderror
                                 </div>
                             @endif
-                            <div class="field planning-textarea planning-topic-text">
-                                <label for="periodos_{{ $indice }}_tema">Tema</label>
+                            <div class="field planning-textarea planning-topic-text" id="periodos_{{ $indice }}_tema_libre"
+                                @if ($usaLibro && $temaLibroActual) hidden @endif>
+                                <label for="periodos_{{ $indice }}_tema">{{ $usaLibro ? 'Escribe tu tema' : 'Tema' }}</label>
                                 <textarea id="periodos_{{ $indice }}_tema" name="periodos[{{ $indice }}][tema]" rows="2"
-                                    placeholder="Escribe el tema que se desarrollará" @readonly($temaLibroSeleccionado)>{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
+                                    placeholder="Ej.: Resolución de problemas con sumas de tres cifras">{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
                                 @error("periodos.$indice.tema")
                                     <small class="field-error">{{ $message }}</small>
                                 @enderror
@@ -537,7 +530,7 @@
         </section>
 
         <section class="panel">
-            <div class="planning-section-heading"><span>04</span>
+            <div class="planning-section-heading"><span>03</span>
                 <div>
                     <h2>Adaptaciones curriculares</h2>
                     <p>Completa esta sección si corresponde</p>
@@ -710,6 +703,10 @@
                     const bloqueadoPorTema = select.dataset.topicLocked === 'true';
                     boton.disabled = select.disabled || bloqueadoPorTema;
                     boton.classList.toggle('is-placeholder', !select.value);
+                    contenedor.classList.toggle('is-topic-locked', bloqueadoPorTema && Boolean(select.value));
+                    boton.title = bloqueadoPorTema
+                        ? 'Este elemento fue asignado automáticamente por el tema del libro.'
+                        : '';
 
                     [...select.children].forEach(elemento => {
                         if (elemento instanceof HTMLOptGroupElement) {
@@ -829,10 +826,12 @@
                 const temaLibro = unidad?.temas.find(tema => String(tema.id) === selector.value && tema.disponible);
                 const { destreza, indicador } = controles(periodo);
                 const campoTema = document.getElementById(`periodos_${periodo}_tema`);
+                const temaLibre = document.getElementById(`periodos_${periodo}_tema_libre`);
 
                 destreza.dataset.topicLocked = temaLibro ? 'true' : 'false';
                 indicador.dataset.topicLocked = temaLibro ? 'true' : 'false';
-                campoTema.readOnly = Boolean(temaLibro);
+                if (temaLibre) temaLibre.hidden = Boolean(temaLibro);
+                selector.title = selector.selectedOptions[0]?.textContent.trim() || '';
 
                 if (temaLibro) {
                     campoTema.value = temaLibro.titulo;
@@ -854,7 +853,7 @@
                 const unidad = unidadActual();
                 document.querySelectorAll('.book-topic-select').forEach(selector => {
                     const seleccionAnterior = limpiarSeleccion ? '' : selector.dataset.selected || selector.value;
-                    selector.replaceChildren(new Option('Tema libre del docente', ''));
+                    selector.replaceChildren(new Option('Tema libre', ''));
                     unidad?.temas.forEach(tema => {
                         const sufijo = tema.disponible ? '' : ' · Pendiente de catálogo';
                         const opcion = new Option(`${tema.etiqueta} · ${tema.titulo}${sufijo}`, tema.id);
@@ -873,6 +872,7 @@
                 selector.addEventListener('change', () => {
                     selector.dataset.selected = selector.value;
                     aplicarTemaLibro(selector, true);
+                    if (!selector.value) document.getElementById(`periodos_${selector.dataset.period}_tema`)?.focus();
                 });
             });
 
