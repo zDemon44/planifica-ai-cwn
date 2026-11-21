@@ -42,4 +42,11 @@ return [
         'timeout' => (int) env('OLLAMA_TIMEOUT', 420),
     ],
 
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-flash-lite-latest'),
+        'connect_timeout' => (int) env('GEMINI_CONNECT_TIMEOUT', 5),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 60),
+    ],
+
 ];

@@ -68,18 +68,18 @@ class AsistentePlanificacionController extends Controller
 
             if (str_contains(mb_strtolower($exception->getMessage()), 'timed out')) {
                 return response()->json([
-                    'message' => 'Ollama está abierto, pero la generación superó el tiempo máximo. Inténtalo nuevamente con indicaciones más breves.',
+                    'message' => 'La generación con Gemini superó el tiempo máximo. Inténtalo nuevamente con indicaciones más breves.',
                 ], 504);
             }
 
             return response()->json([
-                'message' => 'No pudimos comunicarnos con el asistente. Verifica que Ollama esté abierto e inténtalo nuevamente.',
+                'message' => 'No pudimos comunicarnos con Gemini. Verifica la conexión e inténtalo nuevamente.',
             ], 503);
         } catch (Throwable $exception) {
             report($exception);
 
             return response()->json([
-                'message' => 'No pudimos comunicarnos con el asistente. Verifica que Ollama esté abierto e inténtalo nuevamente.',
+                'message' => 'No pudimos comunicarnos con Gemini. Verifica la conexión e inténtalo nuevamente.',
             ], 503);
         }
 

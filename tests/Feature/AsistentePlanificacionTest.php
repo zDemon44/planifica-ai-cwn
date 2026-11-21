@@ -32,10 +32,9 @@ class AsistentePlanificacionTest extends TestCase
         $propuesta['recursos'] = 'Docente: Páginas 12-14 del libro de texto. Estudiantes: hojas de papel y lápiz.';
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::response([
-                'message' => ['role' => 'assistant', 'content' => json_encode($propuesta)],
-                'done' => true,
-            ]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response(
+                $this->respuestaGemini((string) json_encode($propuesta)),
+            ),
         ]);
 
         $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
@@ -57,39 +56,42 @@ class AsistentePlanificacionTest extends TestCase
         Http::assertSent(function (Request $request) use ($asignacion, $destreza): bool {
             $datos = $request->data();
 
-            return $request->url() === 'http://127.0.0.1:11434/api/chat'
-                && $datos['model'] === 'qwen3.5:9b'
-                && $datos['stream'] === false
-                && $datos['think'] === false
-                && $datos['format']['type'] === 'object'
-                && $datos['format']['properties']['experiencia']['type'] === 'array'
-                && $datos['format']['properties']['experiencia']['minItems'] === 2
-                && $datos['format']['properties']['experiencia']['maxItems'] === 3
-                && $datos['format']['properties']['experiencia']['items']['maxLength'] === 180
-                && str_contains($datos['format']['properties']['recursos']['description'], 'sin separarlos')
-                && str_contains($datos['format']['properties']['experiencia']['description'], 'infinitivo')
-                && str_contains($datos['format']['properties']['experiencia']['description'], 'Acciones completas')
-                && str_contains($datos['format']['properties']['instrumento_evaluacion']['description'], 'completa y lista para usar')
-                && $datos['options']['num_predict'] === 850
-                && str_contains($datos['messages'][1]['content'], $asignacion->materia->nombre)
-                && str_contains($datos['messages'][1]['content'], $destreza->descripcion)
-                && str_contains($datos['messages'][1]['content'], '90 minutos')
-                && str_contains($datos['messages'][1]['content'], 'Secuencias con material concreto')
-                && str_contains($datos['messages'][1]['content'], 'materiales reciclados')
-                && str_contains($datos['messages'][1]['content'], 'página 13')
-                && str_contains($datos['messages'][1]['content'], 'Iniciar con infinitivo')
-                && str_contains($datos['messages'][1]['content'], 'EXPERIENCIA')
-                && str_contains($datos['messages'][1]['content'], 'dialogar a partir de preguntas')
-                && str_contains($datos['messages'][1]['content'], 'dos o tres acciones')
-                && str_contains($datos['messages'][1]['content'], 'SIN guiones')
-                && str_contains($datos['messages'][1]['content'], 'no devolver solamente nombres')
-                && str_contains($datos['messages'][1]['content'], 'entre tres y cinco criterios')
-                && str_contains($datos['messages'][1]['content'], 'sin «Docente:»')
-                && str_contains($datos['messages'][1]['content'], 'materiales ordinarios');
+            $esquema = $datos['generationConfig']['responseJsonSchema'];
+            $prompt = $datos['contents'][0]['parts'][0]['text'];
+
+            return $request->url() === 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent'
+                && $request->hasHeader('x-goog-api-key')
+                && $datos['generationConfig']['responseMimeType'] === 'application/json'
+                && $esquema['type'] === 'object'
+                && $esquema['properties']['experiencia']['type'] === 'array'
+                && $esquema['properties']['experiencia']['minItems'] === 2
+                && $esquema['properties']['experiencia']['maxItems'] === 3
+                && $esquema['properties']['experiencia']['items']['maxLength'] === 180
+                && str_contains($esquema['properties']['recursos']['description'], 'sin separarlos')
+                && str_contains($esquema['properties']['experiencia']['description'], 'infinitivo')
+                && str_contains($esquema['properties']['experiencia']['description'], 'Acciones completas')
+                && str_contains($esquema['properties']['instrumento_evaluacion']['description'], 'completa y lista para usar')
+                && $datos['generationConfig']['maxOutputTokens'] === 850
+                && str_contains($datos['systemInstruction']['parts'][0]['text'], 'especialista ecuatoriano')
+                && str_contains($prompt, $asignacion->materia->nombre)
+                && str_contains($prompt, $destreza->descripcion)
+                && str_contains($prompt, '90 minutos')
+                && str_contains($prompt, 'Secuencias con material concreto')
+                && str_contains($prompt, 'materiales reciclados')
+                && str_contains($prompt, 'página 13')
+                && str_contains($prompt, 'Iniciar con infinitivo')
+                && str_contains($prompt, 'EXPERIENCIA')
+                && str_contains($prompt, 'dialogar a partir de preguntas')
+                && str_contains($prompt, 'dos o tres acciones')
+                && str_contains($prompt, 'SIN guiones')
+                && str_contains($prompt, 'no devolver solamente nombres')
+                && str_contains($prompt, 'entre tres y cinco criterios')
+                && str_contains($prompt, 'sin «Docente:»')
+                && str_contains($prompt, 'materiales ordinarios');
         });
     }
 
-    public function test_rechaza_un_indicador_no_relacionado_sin_consultar_a_ollama(): void
+    public function test_rechaza_un_indicador_no_relacionado_sin_consultar_a_gemini(): void
     {
         [$asignacion, $destreza, , $docente] = $this->contextoCurricular();
         $indicadorAjeno = IndicadorEvaluacion::create([
@@ -126,9 +128,9 @@ class AsistentePlanificacionTest extends TestCase
         ], JSON_UNESCAPED_UNICODE);
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::response([
-                'message' => ['role' => 'assistant', 'content' => json_encode($propuesta)],
-            ]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response(
+                $this->respuestaGemini((string) json_encode($propuesta)),
+            ),
         ]);
 
         $this->actingAs($docente)
@@ -142,7 +144,7 @@ class AsistentePlanificacionTest extends TestCase
             ->assertJsonPath('propuesta.dua_experiencia', "Participación: Describir oralmente los patrones observados.\nRepresentación: Dibujar los patrones en el cuaderno.\nExpresión: Explicar el patrón con palabras o gestos.");
     }
 
-    public function test_corrige_saltos_de_linea_invalidos_en_la_respuesta_de_ollama(): void
+    public function test_corrige_saltos_de_linea_invalidos_en_la_respuesta_de_gemini(): void
     {
         [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
         $propuesta = $this->propuesta();
@@ -158,10 +160,9 @@ class AsistentePlanificacionTest extends TestCase
         ], $contenido);
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::response([
-                'message' => ['role' => 'assistant', 'content' => $contenido],
-                'done' => true,
-            ]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response(
+                $this->respuestaGemini((string) $contenido),
+            ),
         ]);
 
         $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
@@ -181,9 +182,9 @@ class AsistentePlanificacionTest extends TestCase
         [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::sequence()
-                ->push(['message' => ['role' => 'assistant', 'content' => '{respuesta truncada']])
-                ->push(['message' => ['role' => 'assistant', 'content' => json_encode($this->propuesta())]]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::sequence()
+                ->push($this->respuestaGemini('{respuesta truncada'))
+                ->push($this->respuestaGemini((string) json_encode($this->propuesta()))),
         ]);
 
         $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
@@ -199,8 +200,8 @@ class AsistentePlanificacionTest extends TestCase
         Http::assertSent(function (Request $request): bool {
             $datos = $request->data();
 
-            return $datos['options']['num_predict'] === 950
-                && str_contains($datos['messages'][1]['content'], 'REINTENTO');
+            return $datos['generationConfig']['maxOutputTokens'] === 950
+                && str_contains($datos['contents'][0]['parts'][0]['text'], 'REINTENTO');
         });
     }
 
@@ -211,9 +212,9 @@ class AsistentePlanificacionTest extends TestCase
         $pobre['experiencia'] = 'Observar una secuencia.';
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::sequence()
-                ->push(['message' => ['role' => 'assistant', 'content' => json_encode($pobre)]])
-                ->push(['message' => ['role' => 'assistant', 'content' => json_encode($this->propuesta())]]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::sequence()
+                ->push($this->respuestaGemini((string) json_encode($pobre)))
+                ->push($this->respuestaGemini((string) json_encode($this->propuesta()))),
         ]);
 
         $this->actingAs($docente)
@@ -228,7 +229,7 @@ class AsistentePlanificacionTest extends TestCase
 
         Http::assertSentCount(2);
         Http::assertSent(fn (Request $request): bool => str_contains(
-            $request->data()['messages'][1]['content'],
+            $request->data()['contents'][0]['parts'][0]['text'],
             'fases ERCA demasiado breves',
         ));
     }
@@ -241,9 +242,9 @@ class AsistentePlanificacionTest extends TestCase
         $propuesta['conceptualizacion'] .= "\n- Representar la regla de formación mediante una expresión sencilla.";
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::response([
-                'message' => ['role' => 'assistant', 'content' => json_encode($propuesta)],
-            ]),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response(
+                $this->respuestaGemini((string) json_encode($propuesta)),
+            ),
         ]);
 
         $this->actingAs($docente)
@@ -299,12 +300,12 @@ class AsistentePlanificacionTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_muestra_un_error_util_cuando_ollama_no_esta_disponible(): void
+    public function test_muestra_un_error_util_cuando_gemini_no_esta_disponible(): void
     {
         [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::failedConnection('Ollama no disponible'),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::failedConnection('Gemini no disponible'),
         ]);
 
         $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
@@ -315,16 +316,16 @@ class AsistentePlanificacionTest extends TestCase
         ]);
 
         $respuesta->assertServiceUnavailable()
-            ->assertJsonPath('message', 'No pudimos comunicarnos con el asistente. Verifica que Ollama esté abierto e inténtalo nuevamente.');
+            ->assertJsonPath('message', 'No pudimos comunicarnos con Gemini. Verifica la conexión e inténtalo nuevamente.');
         Http::assertSentCount(1);
     }
 
-    public function test_diferencia_un_timeout_de_ollama_de_una_desconexion(): void
+    public function test_diferencia_un_timeout_de_gemini_de_una_desconexion(): void
     {
         [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
         Http::preventStrayRequests();
         Http::fake([
-            'http://127.0.0.1:11434/api/chat' => Http::failedConnection('Operation timed out after 420007 milliseconds'),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::failedConnection('Operation timed out after 60007 milliseconds'),
         ]);
 
         $this->actingAs($docente)
@@ -335,7 +336,7 @@ class AsistentePlanificacionTest extends TestCase
                 'duracion_minutos' => 45,
             ])
             ->assertStatus(504)
-            ->assertJsonPath('message', 'Ollama está abierto, pero la generación superó el tiempo máximo. Inténtalo nuevamente con indicaciones más breves.');
+            ->assertJsonPath('message', 'La generación con Gemini superó el tiempo máximo. Inténtalo nuevamente con indicaciones más breves.');
 
         Http::assertSentCount(1);
     }
@@ -368,6 +369,18 @@ class AsistentePlanificacionTest extends TestCase
         ]);
 
         return [$asignacion, $destreza, $indicador, $docente];
+    }
+
+    /** @return array{candidates: array<int, array{content: array{parts: array<int, array{text: string}>}}> } */
+    private function respuestaGemini(string $contenido): array
+    {
+        return [
+            'candidates' => [[
+                'content' => [
+                    'parts' => [['text' => $contenido]],
+                ],
+            ]],
+        ];
     }
 
     /** @return array<string, string> */

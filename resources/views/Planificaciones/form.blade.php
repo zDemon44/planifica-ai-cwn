@@ -1036,7 +1036,7 @@
                         descartarPropuesta(asistente);
                         estado.classList.add('is-error');
                         estado.textContent = error instanceof TypeError && /fetch/i.test(error.message)
-                            ? 'La conexión con el servidor se interrumpió mientras Ollama generaba la propuesta. Espera a que termine cualquier generación pendiente y vuelve a intentarlo.'
+                            ? 'La conexión con el servidor se interrumpió mientras Gemini generaba la propuesta. Vuelve a intentarlo.'
                             : (error.message || 'No se pudo generar la propuesta.');
                     } finally {
                         window.clearInterval(intervaloContador);

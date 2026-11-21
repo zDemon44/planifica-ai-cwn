@@ -116,26 +116,26 @@ PROMPT;
             $promptActual = $esReintento
                 ? $prompt."\n\nREINTENTO: la respuesta anterior no cumplió el JSON o produjo fases ERCA demasiado breves. Completa los 12 campos y desarrolla cada fase con acciones específicas, suficientes y conectadas entre sí. Escribe cada acción en una línea nueva sin guiones ni viñetas."
                 : $prompt;
-            $respuesta = Http::baseUrl(rtrim((string) config('services.ollama.url'), '/'))
-                ->connectTimeout((int) config('services.ollama.connect_timeout'))
-                ->timeout((int) config('services.ollama.timeout'))
-                ->post('/api/chat', [
-                    'model' => config('services.ollama.model'),
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => 'Eres un especialista ecuatoriano en planificación microcurricular, ciclo ERCA y Diseño Universal para el Aprendizaje. Redacta siempre en español y expresa todas las acciones pedagógicas con verbos en infinitivo.',
-                        ],
-                        ['role' => 'user', 'content' => $promptActual],
+            $respuesta = Http::baseUrl('https://generativelanguage.googleapis.com/v1beta')
+                ->withHeaders(['x-goog-api-key' => config('services.gemini.api_key')])
+                ->connectTimeout((int) config('services.gemini.connect_timeout'))
+                ->timeout((int) config('services.gemini.timeout'))
+                ->post('/models/'.config('services.gemini.model').':generateContent', [
+                    'systemInstruction' => [
+                        'parts' => [[
+                            'text' => 'Eres un especialista ecuatoriano en planificación microcurricular, ciclo ERCA y Diseño Universal para el Aprendizaje. Redacta siempre en español y expresa todas las acciones pedagógicas con verbos en infinitivo.',
+                        ]],
                     ],
-                    'stream' => false,
-                    'think' => false,
-                    'format' => $esquema,
-                    'options' => [
+                    'contents' => [[
+                        'role' => 'user',
+                        'parts' => [['text' => $promptActual]],
+                    ]],
+                    'generationConfig' => [
                         'temperature' => 0.1,
-                        'num_predict' => $esReintento ? 950 : 850,
+                        'maxOutputTokens' => $esReintento ? 950 : 850,
+                        'responseMimeType' => 'application/json',
+                        'responseJsonSchema' => $esquema,
                     ],
-                    'keep_alive' => '10m',
                 ])->throw();
 
             try {
@@ -143,7 +143,7 @@ PROMPT;
                     $this->normalizarReferenciasPaginas(
                         $this->normalizarCamposDua(
                             $this->normalizarRecursos(
-                                $this->decodificarPropuesta((string) $respuesta->json('message.content'), $campos),
+                                $this->decodificarPropuesta((string) $respuesta->json('candidates.0.content.parts.0.text'), $campos),
                             ),
                         ),
                         $indicaciones,
@@ -169,7 +169,7 @@ PROMPT;
             }
         }
 
-        throw $ultimoError ?? new UnexpectedValueException('Ollama no devolvió una propuesta válida.');
+        throw $ultimoError ?? new UnexpectedValueException('Gemini no devolvió una propuesta válida.');
     }
 
     /** @param array<string, mixed> $propuesta
@@ -326,13 +326,13 @@ PROMPT;
             } catch (JsonException $exception) {
                 $propuesta = $this->extraerCamposDeRespuesta($contenido, $campos);
                 if ($propuesta === null) {
-                    throw new UnexpectedValueException('Ollama devolvió una respuesta que no se pudo interpretar.', previous: $exception);
+                    throw new UnexpectedValueException('Gemini devolvió una respuesta que no se pudo interpretar.', previous: $exception);
                 }
             }
         }
 
         if (! is_array($propuesta)) {
-            throw new UnexpectedValueException('Ollama no devolvió una propuesta válida.');
+            throw new UnexpectedValueException('Gemini no devolvió una propuesta válida.');
         }
 
         return $propuesta;
