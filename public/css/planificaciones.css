@@ -364,3 +364,6 @@
     .planning-instrument-matrix th,.planning-instrument-matrix td{padding:2px 3px;border-color:#30445f}
     .instrument-mark{width:8px;height:8px;border-width:1px}
 }
+.instrument-download{display:inline-block;margin-top:6px;padding:4px 9px;border:1px solid #173b72;border-radius:6px;color:#173b72;font-size:10px;font-weight:800;text-decoration:none}
+.instrument-download:hover{background:#173b72;color:#fff}
+@media print{.instrument-download{display:none!important}}

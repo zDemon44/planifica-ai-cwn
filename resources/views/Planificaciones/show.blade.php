@@ -175,7 +175,8 @@
                                 </td>
                                 <td>
                                     <div class="planning-matrix-evaluation"><strong>Técnica</strong><p>{{ $periodo->tecnica_evaluacion ?: '—' }}</p></div>
-                                    <div class="planning-matrix-evaluation"><strong>Instrumento</strong><x-instrumento-evaluacion :texto="$periodo->instrumento_evaluacion" :clave="$periodo->id" /></div>
+                                    <div class="planning-matrix-evaluation"><strong>Instrumento</strong><x-instrumento-evaluacion :texto="$periodo->instrumento_evaluacion" :clave="$periodo->id"
+                                            :descarga="route('planificaciones.lista-cotejo', [$planificacion, $periodo])" /></div>
                                 </td>
                             </tr>
                         </tbody>

@@ -1,4 +1,4 @@
-@props(['texto', 'clave'])
+@props(['texto', 'clave', 'descarga' => null])
 @php
     $instrumento = app(\App\Services\LectorInstrumentoEvaluacion::class)->leer($texto);
 @endphp
@@ -38,6 +38,9 @@
             </tr>
         </tfoot>
     </table>
+    @if ($descarga)
+        <a class="instrument-download" href="{{ $descarga }}">⬇ Descargar lista de cotejo (PDF)</a>
+    @endif
 @else
     <p>{{ $texto ?: '—' }}</p>
 @endif
