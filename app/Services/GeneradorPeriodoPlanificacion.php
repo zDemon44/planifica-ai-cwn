@@ -6,6 +6,7 @@ use App\Models\Asignacion;
 use App\Models\DestrezaCurricular;
 use App\Models\IndicadorEvaluacion;
 use DomainException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -86,7 +87,7 @@ class GeneradorPeriodoPlanificacion
             'aplicacion' => 'Acciones completas en infinitivo para practicar, transferir y demostrar el aprendizaje; una por línea y sin viñetas.',
             'dua_aplicacion' => 'Apoyo DUA de la aplicación, redactado con acciones en infinitivo.',
             'tecnica_evaluacion' => 'Método que utilizará el docente para evaluar el aprendizaje, acompañado de una explicación breve de cómo se aplicará en las actividades propuestas.',
-            'instrumento_evaluacion' => 'Herramienta de evaluación completa y lista para usar: nombre, escala o forma de registro y criterios, descriptores, campos o preguntas concretas alineadas con el indicador.',
+            'instrumento_evaluacion' => 'Herramienta de evaluación completa y lista para usar, en líneas separadas: tipo y título; «Escala:» única y coherente; «Criterios:» numerados, uno por línea, observables, con el contenido concreto de la aplicación (o preguntas y ejercicios si es una prueba), sin puntajes.',
         ];
         $propiedades = collect($campos)->mapWithKeys(function (string $campo) use ($descripciones, $longitudesMaximas): array {
             if (in_array($campo, self::CAMPOS_ERCA, true)) {
@@ -120,10 +121,11 @@ class GeneradorPeriodoPlanificacion
             'aplicacion' => '5. APLICACIÓN: proponer práctica pertinente, resolver una tarea concreta, transferir a una situación nueva o cotidiana y obtener evidencia observable del indicador. Sin relleno.',
             'continuidad' => '6. Mantener continuidad: reflexionar sobre la experiencia, conceptualizar sus interrogantes y aplicar lo aprendido.',
             'dua' => '7. DUA: redactar en infinitivo un apoyo específico por fase: participación en experiencia, expresión en reflexión, representaciones en conceptualización y formas de acción/respuesta en aplicación. Texto plano, sin JSON interno ni frases genéricas.',
-            'recursos' => '8. RECURSOS: lista natural y completa, sin «Docente:» ni «Estudiantes:». Incluir lo pedido y los materiales ordinarios que realmente requieren las actividades, sin inventar. Conservar literalmente páginas, ejercicios y números; nunca ampliar «página 13» a un rango.',
+            'recursos' => '8. RECURSOS: lista natural y completa, sin «Docente:» ni «Estudiantes:». Incluir lo pedido y los materiales ordinarios que realmente requieren las actividades, sin inventar. Conservar literalmente páginas, ejercicios y números; nunca ampliar «página 13» a un rango. Si el docente no indicó páginas, no mencionar ninguna página del libro.',
             'tecnica' => '9. TÉCNICA: indicar el método de evaluación y cómo aplicarlo (observación, preguntas, debate, exposición, ejercicios, análisis de trabajos o prueba).',
-            'instrumento' => '10. INSTRUMENTO: no devolver solamente nombres. Entregarlo listo para usar y alineado con el indicador. Si es lista de cotejo/ficha, incluir escala y entre tres y cinco criterios observables; si es rúbrica/escala, criterios, niveles y descriptores; si es cuestionario/prueba, preguntas o ejercicios; si es registro anecdótico, campos y desempeño observado.',
+            'instrumento' => '10. INSTRUMENTO: no devolver solamente nombres. Entregarlo listo para usar y alineado con el indicador, escrito como el instrumento mismo y no como una instrucción (no empezar con «Utilizar» ni «Aplicar»). Escribir cada parte en una línea nueva: primero el tipo y un título (por ejemplo «Lista de cotejo: Multiplicación con modelos lineal y grupal»); luego «Escala:» con una sola escala coherente con el tipo, sin mezclar escalas (en lista de cotejo usar «Escala: Logrado / No logrado»; en rúbrica, niveles como Logrado / En proceso / Iniciado); luego «Criterios:» y cada criterio numerado en su propia línea, sin puntajes. Si es lista de cotejo/ficha, incluir entre tres y cinco criterios observables, en tercera persona del presente (Identifica, Representa, Resuelve) y con el contenido concreto trabajado en la aplicación: números, ejercicios o problemas; si es rúbrica/escala, criterios, niveles y descriptores; si es cuestionario/prueba, preguntas o ejercicios numerados con su respuesta esperada; si es registro anecdótico, campos y desempeño observado.',
             'alineacion' => '11. Alinear técnica e instrumento con aplicación e indicador. No evaluar contenidos no trabajados ni usar criterios genéricos.',
+            'concrecion' => '12. CONCRECIÓN: escribir el contenido real que el docente usará tal cual, no descripciones genéricas. Incluir datos, números, palabras, oraciones o situaciones específicas del tema: al menos un ejemplo resuelto en conceptualización y al menos un ejercicio o problema redactado completo en aplicación. Evitar frases como «resolver problemas cotidianos» sin decir cuáles.',
         ];
 
         $curso = $asignacion->seccion->curso;
@@ -165,6 +167,7 @@ REGLAS:
 {$reglas['tecnica']}
 {$reglas['instrumento']}
 {$reglas['alineacion']}
+{$reglas['concrecion']}
 
 Máximos: tema 15 palabras; recursos 45; cada fase ERCA 140; cada DUA 45; técnica 45; instrumento 180. Devolver solo el objeto JSON del esquema con todos los campos.
 PROMPT;
@@ -179,14 +182,16 @@ PROMPT;
             $respuesta = $this->consultarGemini($promptActual, $esquema, $maximoTokens);
 
             try {
-                $propuesta = $this->normalizarFasesErca(
-                    $this->normalizarReferenciasPaginas(
-                        $this->normalizarCamposDua(
-                            $this->normalizarRecursos(
-                                $this->decodificarPropuesta($respuesta, $campos),
+                $propuesta = $this->normalizarMayusculasIniciales(
+                    $this->normalizarFasesErca(
+                        $this->normalizarReferenciasPaginas(
+                            $this->normalizarCamposDua(
+                                $this->normalizarRecursos(
+                                    $this->decodificarPropuesta($respuesta, $campos),
+                                ),
                             ),
+                            $indicaciones,
                         ),
-                        $indicaciones,
                     ),
                 );
                 $validador = Validator::make($propuesta, collect($campos)->mapWithKeys(fn (string $campo): array => [
@@ -301,11 +306,48 @@ PROMPT;
      */
     private function consultarGemini(string $prompt, array $esquema, int $maximoTokens): string
     {
+        $modelos = collect([config('services.gemini.model'), config('services.gemini.fallback_model')])
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($modelos as $posicion => $modelo) {
+            try {
+                return $this->consultarModeloGemini($modelo, $prompt, $esquema, $maximoTokens, $posicion === 0);
+            } catch (RequestException $exception) {
+                $saturado = in_array($exception->response->status(), [429, 500, 503], true);
+                if (! $saturado || $posicion === $modelos->count() - 1) {
+                    throw $exception;
+                }
+            }
+        }
+
+        throw new UnexpectedValueException('No hay un modelo de Gemini configurado.');
+    }
+
+    /**
+     * El presupuesto de razonamiento solo se envía al modelo principal: los modelos lite no lo aceptan.
+     *
+     * @param  array<string, mixed>  $esquema
+     */
+    private function consultarModeloGemini(string $modelo, string $prompt, array $esquema, int $maximoTokens, bool $esModeloPrincipal): string
+    {
+        $presupuestoRazonamiento = config('services.gemini.thinking_budget');
+        $configuracion = [
+            'temperature' => 0.1,
+            'maxOutputTokens' => $maximoTokens,
+            'responseMimeType' => 'application/json',
+            'responseJsonSchema' => $esquema,
+        ];
+        if ($esModeloPrincipal && filled($presupuestoRazonamiento)) {
+            $configuracion['thinkingConfig'] = ['thinkingBudget' => (int) $presupuestoRazonamiento];
+        }
+
         $respuesta = Http::baseUrl('https://generativelanguage.googleapis.com/v1beta')
             ->withHeaders(['x-goog-api-key' => config('services.gemini.api_key')])
             ->connectTimeout((int) config('services.gemini.connect_timeout'))
             ->timeout((int) config('services.gemini.timeout'))
-            ->post('/models/'.config('services.gemini.model').':generateContent', [
+            ->post('/models/'.$modelo.':generateContent', [
                 'systemInstruction' => [
                     'parts' => [[
                         'text' => 'Eres un especialista ecuatoriano en planificación microcurricular, ciclo ERCA y Diseño Universal para el Aprendizaje. Redacta siempre en español y expresa todas las acciones pedagógicas con verbos en infinitivo.',
@@ -315,12 +357,7 @@ PROMPT;
                     'role' => 'user',
                     'parts' => [['text' => $prompt]],
                 ]],
-                'generationConfig' => [
-                    'temperature' => 0.1,
-                    'maxOutputTokens' => $maximoTokens,
-                    'responseMimeType' => 'application/json',
-                    'responseJsonSchema' => $esquema,
-                ],
+                'generationConfig' => $configuracion,
             ])->throw();
 
         return (string) $respuesta->json('candidates.0.content.parts.0.text');
@@ -403,6 +440,19 @@ PROMPT;
         }
 
         return $propuesta;
+    }
+
+    /**
+     * Escribe con mayúscula la primera letra de cada línea; los modelos rápidos suelen iniciar en minúscula.
+     *
+     * @param  array<string, mixed>  $propuesta
+     * @return array<string, mixed>
+     */
+    private function normalizarMayusculasIniciales(array $propuesta): array
+    {
+        return array_map(fn (mixed $valor): mixed => is_string($valor)
+            ? preg_replace_callback('/^(\s*)(\p{Ll})/mu', fn (array $coincidencia): string => $coincidencia[1].mb_strtoupper($coincidencia[2]), $valor)
+            : $valor, $propuesta);
     }
 
     /** @param array<string, string> $propuesta */

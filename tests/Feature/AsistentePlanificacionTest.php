@@ -50,7 +50,7 @@ class AsistentePlanificacionTest extends TestCase
         $respuesta->assertOk()
             ->assertJsonPath('message', 'Propuesta generada. Revísala antes de guardar el borrador.')
             ->assertJsonPath('propuesta.tema', 'Secuencias con material concreto')
-            ->assertJsonPath('propuesta.recursos', 'página 13 del libro de texto, hojas de papel y lápiz.')
+            ->assertJsonPath('propuesta.recursos', 'Página 13 del libro de texto, hojas de papel y lápiz.')
             ->assertJsonPath('propuesta.experiencia', str_replace('- ', '', $propuesta['experiencia']))
             ->assertJsonPath('propuesta.dua_aplicacion', 'Permitir expresar la respuesta mediante material concreto o dibujo.');
         Http::assertSent(function (Request $request) use ($asignacion, $destreza): bool {
@@ -89,6 +89,55 @@ class AsistentePlanificacionTest extends TestCase
                 && str_contains($prompt, 'sin «Docente:»')
                 && str_contains($prompt, 'materiales ordinarios');
         });
+    }
+
+    public function test_usa_el_modelo_de_respaldo_cuando_el_principal_esta_saturado(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        config([
+            'services.gemini.model' => 'gemini-3.5-flash',
+            'services.gemini.fallback_model' => 'gemini-flash-lite-latest',
+            'services.gemini.thinking_budget' => '0',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent' => Http::response(['error' => ['code' => 503]], 503),
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response($this->respuestaGemini((string) json_encode($this->propuesta()))),
+        ]);
+
+        $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'destreza_curricular_id' => $destreza->id,
+            'indicador_evaluacion_id' => $indicador->id,
+            'duracion_minutos' => 45,
+        ])->assertOk();
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'gemini-3.5-flash:')
+            && $request['generationConfig']['thinkingConfig'] === ['thinkingBudget' => 0]);
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'gemini-flash-lite-latest:')
+            && ! array_key_exists('thinkingConfig', $request['generationConfig']));
+    }
+
+    public function test_no_cambia_de_modelo_ante_un_error_de_la_solicitud(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        config([
+            'services.gemini.model' => 'gemini-3.5-flash',
+            'services.gemini.fallback_model' => 'gemini-flash-lite-latest',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::response(['error' => ['code' => 400]], 400),
+        ]);
+
+        $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'destreza_curricular_id' => $destreza->id,
+            'indicador_evaluacion_id' => $indicador->id,
+            'duracion_minutos' => 45,
+        ])->assertStatus(503);
+
+        Http::assertSentCount(1);
     }
 
     public function test_genera_solo_el_campo_enfocado_usando_el_contenido_actual_del_bloque(): void

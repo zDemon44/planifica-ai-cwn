@@ -22,6 +22,24 @@ class PlanificacionesTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_la_planificacion_muestra_el_instrumento_como_cuadro_para_marcar(): void
+    {
+        $periodo = Planificacion::factory()->create()->periodos()->orderBy('orden')->firstOrFail();
+        $periodo->update([
+            'instrumento_evaluacion' => "Lista de cotejo: Multiplicación\nEscala: Logrado / No logrado\nCriterios:\n1. Representa 4 x 3 = 12 con tapas\n2. Resuelve el problema de las macetas",
+        ]);
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $periodo->planificacion->asignacion->docente_id]);
+
+        $this->actingAs($docente)
+            ->get(route('planificaciones.show', $periodo->planificacion))
+            ->assertOk()
+            ->assertSeeInOrder(['Instrumento', 'class="planning-instrument-matrix"', 'Lista de cotejo: Multiplicación', 'Indicadores', 'Logrado', 'No logrado'], false)
+            ->assertSeeInOrder(['Representa 4 x 3 = 12 con tapas', 'Resuelve el problema de las macetas', 'Totales'])
+            ->assertDontSee('Puntos')
+            ->assertSee('name="instrumento-'.$periodo->id.'-1"', false)
+            ->assertSee('data-total-nivel="1"', false);
+    }
+
     public function test_docente_crea_borrador_y_administracion_lo_aprueba_en_dos_pasos(): void
     {
         $asignacion = Asignacion::factory()->create();

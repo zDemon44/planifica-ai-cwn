@@ -280,8 +280,8 @@
                         <div class="planning-period-header-actions">
                             @if(auth()->user()->role === 'DOCENTE')
                                 <button class="copilot-block-trigger" type="button" data-ai-open="{{ $indice }}"
-                                    title="Abre el copiloto para este bloque. También puedes usar ✦ junto a cada campo." aria-label="Abrir el copiloto para el bloque {{ str_pad($indice + 1, 2, '0', STR_PAD_LEFT) }}">
-                                    <span aria-hidden="true">✦</span> Copiloto
+                                    title="Abre el asistente para este bloque. También puedes usar ✦ junto a cada campo." aria-label="Abrir el asistente para el bloque {{ str_pad($indice + 1, 2, '0', STR_PAD_LEFT) }}">
+                                    <span aria-hidden="true">✦</span> Asistente
                                 </button>
                             @endif
                             <span class="planning-period-badge">{{ $fin - $inicio + 1 }}
@@ -545,8 +545,8 @@
         <aside class="copilot" id="copilot" aria-labelledby="copilot-titulo" hidden>
             <header class="copilot-header">
                 <span class="copilot-mark" aria-hidden="true">✦</span>
-                <div><strong id="copilot-titulo">Copiloto</strong><p>Prepara propuestas ERCA y DUA que revisas en cada campo antes de conservarlas.</p></div>
-                <button class="copilot-close" type="button" aria-label="Cerrar copiloto">×</button>
+                <div><strong id="copilot-titulo">Asistente</strong><p>Prepara propuestas ERCA y DUA que revisas en cada campo antes de conservarlas.</p></div>
+                <button class="copilot-close" type="button" aria-label="Cerrar asistente">×</button>
             </header>
             <div class="copilot-body">
                 <div class="copilot-field">
@@ -1230,7 +1230,7 @@
                     disparador.type = 'button';
                     disparador.className = 'copilot-field-trigger';
                     disparador.textContent = '✦';
-                    disparador.title = `Preparar «${etiquetasCampos[campo]}» con el copiloto`;
+                    disparador.title = `Preparar «${etiquetasCampos[campo]}» con el asistente`;
                     disparador.setAttribute('aria-label', disparador.title);
                     disparador.addEventListener('click', evento => {
                         evento.preventDefault();
@@ -1394,7 +1394,7 @@
                 const barra = document.createElement('div');
                 barra.className = 'copilot-inline planning-period-full';
                 const aviso = document.createElement('span');
-                aviso.textContent = '✦ Destreza e indicador elegidos por el copiloto';
+                aviso.textContent = '✦ Destreza e indicador elegidos por el asistente';
                 const descartar = document.createElement('button');
                 descartar.type = 'button';
                 descartar.className = 'copilot-discard';

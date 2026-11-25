@@ -348,3 +348,19 @@
 .copilot-block-trigger:hover,.copilot-block-trigger:focus-visible{border-color:var(--brand);background:#eef3fa}
 @media print{.copilot-block-trigger{display:none!important}}
 @media(prefers-reduced-motion:reduce){.copilot-block-trigger{transition:none}}
+.planning-instrument-matrix{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;font-size:10px;line-height:1.3}
+.planning-instrument-matrix caption{padding:0 0 4px;color:#17345e;font-weight:800;text-align:left;caption-side:top}
+.planning-instrument-matrix th,.planning-instrument-matrix td{border:1px solid #526b8c;padding:4px 5px;vertical-align:middle;overflow-wrap:anywhere}
+.planning-instrument-matrix thead th,.planning-instrument-matrix tfoot th{background:#dce8f5;color:#17345e;font-weight:900;text-align:center}
+.planning-instrument-matrix .instrument-indicator{text-align:left}
+.planning-instrument-matrix .instrument-level{width:22%;text-align:center}
+.planning-instrument-matrix .instrument-total-label{text-align:right}
+.planning-instrument-matrix .instrument-count{font-weight:900;color:#17345e}
+.instrument-mark{appearance:none;-webkit-appearance:none;display:inline-block;width:13px;height:13px;margin:0;border:1.5px solid #30445f;border-radius:2px;background:#fff;cursor:pointer;vertical-align:middle;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.instrument-mark:checked{background:#173b72;box-shadow:inset 0 0 0 2px #fff}
+.instrument-mark:focus-visible{outline:2px solid #2d6cdf;outline-offset:2px}
+@media print{
+    .planning-instrument-matrix{font-size:6pt;line-height:1.2}
+    .planning-instrument-matrix th,.planning-instrument-matrix td{padding:2px 3px;border-color:#30445f}
+    .instrument-mark{width:8px;height:8px;border-width:1px}
+}

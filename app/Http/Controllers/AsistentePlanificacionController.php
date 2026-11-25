@@ -55,6 +55,10 @@ class AsistentePlanificacionController extends Controller
             }
         }
 
+        // Selección y generación hacen hasta dos intentos cada una, con modelo principal y de respaldo:
+        // el límite de PHP (30 s por defecto) no debe cortar esas llamadas antes que sus propios timeouts.
+        set_time_limit(8 * ((int) config('services.gemini.timeout') + (int) config('services.gemini.connect_timeout')) + 30);
+
         try {
             if ($seleccionAutomatica) {
                 ['destreza' => $destreza, 'indicador' => $indicador] = $generador->seleccionarCurriculo($asignacion, $tema, $tituloUnidad, $indicaciones);
