@@ -244,6 +244,93 @@ class PlanificacionesTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/id="periodos_1_tema_libre"\s+hidden\s*>/', $edicion->getContent());
     }
 
+    public function test_taller_reune_temas_de_varias_unidades_y_asigna_su_destreza_comun(): void
+    {
+        [$docente, $datos, $unidadUno, $unidadDos, $destreza, $indicador] = $this->contextoTaller();
+        $temaUno = TemaLibro::factory()->create(['unidad_libro_id' => $unidadUno->id, 'orden' => 1, 'etiqueta' => 'Tema 1', 'titulo' => 'Sucesiones crecientes', 'destreza_curricular_id' => $destreza->id, 'indicador_evaluacion_id' => $indicador->id]);
+        $temaDos = TemaLibro::factory()->create(['unidad_libro_id' => $unidadDos->id, 'orden' => 1, 'etiqueta' => 'Tema 4', 'titulo' => 'Sucesiones decrecientes', 'destreza_curricular_id' => $destreza->id, 'indicador_evaluacion_id' => $indicador->id]);
+        $datos['periodos'][1] = array_merge($datos['periodos'][1], [
+            'tema_libro_id' => 'taller',
+            'temas_taller' => [$temaDos->id, $temaUno->id],
+            'tema' => '',
+            'destreza_curricular_id' => '',
+            'indicador_evaluacion_id' => '',
+        ]);
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)->assertSessionHasNoErrors();
+
+        $periodo = Planificacion::sole()->periodos()->where('orden', 2)->firstOrFail();
+        $this->assertTrue($periodo->es_taller);
+        $this->assertNull($periodo->tema_libro_id);
+        $this->assertSame('Taller: Sucesiones decrecientes; Sucesiones crecientes', $periodo->tema);
+        $this->assertSame($destreza->id, $periodo->destreza_curricular_id);
+        $this->assertSame($indicador->id, $periodo->indicador_evaluacion_id);
+        $this->assertSame([$temaDos->id, $temaUno->id], $periodo->temasTaller->pluck('id')->all());
+
+        $this->get(route('planificaciones.edit', $periodo->planificacion))->assertOk()
+            ->assertSee('<option value="taller" selected>', false)
+            ->assertSee('name="periodos[1][temas_taller][]" value="'.$temaUno->id.'"', false);
+    }
+
+    public function test_taller_con_temas_de_destrezas_distintas_exige_elegir_una(): void
+    {
+        [$docente, $datos, $unidadUno, $unidadDos, $destreza, $indicador] = $this->contextoTaller();
+        $otraDestreza = DestrezaCurricular::create(['materia_id' => $unidadUno->libroTexto->materia_id, 'grado' => $unidadUno->libroTexto->grado, 'codigo' => 'M.2.2.5', 'descripcion' => 'Medir longitudes.', 'grupo' => 2, 'activo' => true]);
+        $otroIndicador = IndicadorEvaluacion::create(['materia_id' => $unidadUno->libroTexto->materia_id, 'grado' => $unidadUno->libroTexto->grado, 'codigo' => 'I.M.2.2.5', 'descripcion' => 'Mide objetos.', 'grupo' => 2, 'activo' => true]);
+        $otraDestreza->indicadores()->attach($otroIndicador);
+        $temaUno = TemaLibro::factory()->create(['unidad_libro_id' => $unidadUno->id, 'orden' => 1, 'destreza_curricular_id' => $destreza->id, 'indicador_evaluacion_id' => $indicador->id]);
+        $temaDos = TemaLibro::factory()->create(['unidad_libro_id' => $unidadDos->id, 'orden' => 1, 'destreza_curricular_id' => $otraDestreza->id, 'indicador_evaluacion_id' => $otroIndicador->id]);
+        $taller = ['tema_libro_id' => 'taller', 'temas_taller' => [$temaUno->id, $temaDos->id], 'destreza_curricular_id' => '', 'indicador_evaluacion_id' => ''];
+        $datos['periodos'][0] = array_merge($datos['periodos'][0], $taller);
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors(['periodos.0.indicador_evaluacion_id' => 'Los temas del taller tienen destrezas o indicadores distintos: elige con cuál quedarte.']);
+
+        $datos['periodos'][0]['destreza_curricular_id'] = $destreza->id;
+        $datos['periodos'][0]['indicador_evaluacion_id'] = $otroIndicador->id;
+        $this->post(route('planificaciones.store'), $datos)->assertSessionHasErrors('periodos.0.indicador_evaluacion_id');
+
+        $datos['periodos'][0]['destreza_curricular_id'] = $otraDestreza->id;
+        $this->post(route('planificaciones.store'), $datos)->assertSessionHasNoErrors();
+        $this->assertSame($otraDestreza->id, Planificacion::sole()->periodos()->where('orden', 1)->value('destreza_curricular_id'));
+    }
+
+    public function test_taller_rechaza_temas_vacios_o_de_otro_libro(): void
+    {
+        [$docente, $datos] = $this->contextoTaller();
+        $temaAjeno = TemaLibro::factory()->create();
+        $datos['periodos'][0]['tema_libro_id'] = 'taller';
+
+        $this->actingAs($docente)->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors(['periodos.0.temas_taller' => 'Elige al menos un tema para el taller.']);
+
+        $datos['periodos'][0]['temas_taller'] = [$temaAjeno->id];
+        $this->post(route('planificaciones.store'), $datos)
+            ->assertSessionHasErrors(['periodos.0.temas_taller' => 'Los temas del taller deben pertenecer al libro de esta materia y grado.']);
+        $this->assertDatabaseCount('planificaciones', 0);
+    }
+
+    /** @return array{0: User, 1: array<string, mixed>, 2: UnidadLibro, 3: UnidadLibro, 4: DestrezaCurricular, 5: IndicadorEvaluacion} */
+    private function contextoTaller(): array
+    {
+        $asignacion = Asignacion::factory()->create();
+        $docente = User::factory()->create(['role' => 'DOCENTE', 'docente_id' => $asignacion->docente_id]);
+        $datos = $this->datos($asignacion);
+        $libro = LibroTexto::factory()->create(['materia_id' => $asignacion->materia_id, 'grado' => $asignacion->seccion->curso->grado]);
+        $unidadUno = UnidadLibro::factory()->create(['libro_texto_id' => $libro->id, 'numero' => 1]);
+        $unidadDos = UnidadLibro::factory()->create(['libro_texto_id' => $libro->id, 'numero' => 2]);
+        $datos['unidad_libro_id'] = $unidadUno->id;
+
+        return [
+            $docente,
+            $datos,
+            $unidadUno,
+            $unidadDos,
+            DestrezaCurricular::findOrFail($datos['periodos'][0]['destreza_curricular_id']),
+            IndicadorEvaluacion::findOrFail($datos['periodos'][0]['indicador_evaluacion_id']),
+        ];
+    }
+
     public function test_rechaza_un_tema_que_no_pertenece_a_la_unidad_seleccionada(): void
     {
         $asignacion = Asignacion::factory()->create();

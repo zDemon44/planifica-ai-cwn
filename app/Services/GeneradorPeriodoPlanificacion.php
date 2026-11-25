@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Asignacion;
 use App\Models\DestrezaCurricular;
 use App\Models\IndicadorEvaluacion;
+use DomainException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -175,34 +176,14 @@ PROMPT;
                 : "\n\nREINTENTO: la respuesta anterior no cumplió el JSON o produjo fases ERCA demasiado breves. Completa los 12 campos y desarrolla cada fase con acciones específicas, suficientes y conectadas entre sí. Escribe cada acción en una línea nueva sin guiones ni viñetas.";
             $promptActual = $esReintento ? $prompt.$avisoReintento : $prompt;
             $maximoTokens = $enfoque ? ($esReintento ? 650 : 550) : ($esReintento ? 950 : 850);
-            $respuesta = Http::baseUrl('https://generativelanguage.googleapis.com/v1beta')
-                ->withHeaders(['x-goog-api-key' => config('services.gemini.api_key')])
-                ->connectTimeout((int) config('services.gemini.connect_timeout'))
-                ->timeout((int) config('services.gemini.timeout'))
-                ->post('/models/'.config('services.gemini.model').':generateContent', [
-                    'systemInstruction' => [
-                        'parts' => [[
-                            'text' => 'Eres un especialista ecuatoriano en planificación microcurricular, ciclo ERCA y Diseño Universal para el Aprendizaje. Redacta siempre en español y expresa todas las acciones pedagógicas con verbos en infinitivo.',
-                        ]],
-                    ],
-                    'contents' => [[
-                        'role' => 'user',
-                        'parts' => [['text' => $promptActual]],
-                    ]],
-                    'generationConfig' => [
-                        'temperature' => 0.1,
-                        'maxOutputTokens' => $maximoTokens,
-                        'responseMimeType' => 'application/json',
-                        'responseJsonSchema' => $esquema,
-                    ],
-                ])->throw();
+            $respuesta = $this->consultarGemini($promptActual, $esquema, $maximoTokens);
 
             try {
                 $propuesta = $this->normalizarFasesErca(
                     $this->normalizarReferenciasPaginas(
                         $this->normalizarCamposDua(
                             $this->normalizarRecursos(
-                                $this->decodificarPropuesta((string) $respuesta->json('candidates.0.content.parts.0.text'), $campos),
+                                $this->decodificarPropuesta($respuesta, $campos),
                             ),
                         ),
                         $indicaciones,
@@ -229,6 +210,125 @@ PROMPT;
         }
 
         throw $ultimoError ?? new UnexpectedValueException('Gemini no devolvió una propuesta válida.');
+    }
+
+    /**
+     * Elige, entre las destrezas activas del catálogo, la más pertinente para un tema libre
+     * y uno de los indicadores vinculados a ella.
+     *
+     * @return array{destreza: DestrezaCurricular, indicador: IndicadorEvaluacion}
+     *
+     * @throws DomainException cuando el catálogo no tiene destrezas con indicadores vinculados.
+     */
+    public function seleccionarCurriculo(Asignacion $asignacion, ?string $tema, ?string $tituloUnidad, ?string $indicaciones): array
+    {
+        $grado = $asignacion->seccion->curso->grado;
+        $destrezas = DestrezaCurricular::with(['curriculo', 'indicadores' => fn ($consulta) => $consulta
+            ->where('indicadores_evaluacion.activo', true)
+            ->where('indicadores_evaluacion.materia_id', $asignacion->materia_id)
+            ->where('indicadores_evaluacion.grado', $grado)
+            ->orderBy('codigo')])
+            ->where('materia_id', $asignacion->materia_id)
+            ->where('grado', $grado)
+            ->where('activo', true)
+            ->orderBy('curriculo_id')->orderBy('grupo')->orderBy('codigo')
+            ->get()
+            ->filter(fn (DestrezaCurricular $destreza): bool => $destreza->indicadores->isNotEmpty())
+            ->keyBy('id');
+
+        if ($destrezas->isEmpty()) {
+            throw new DomainException('El catálogo curricular no tiene destrezas con indicadores vinculados para esta materia y grado.');
+        }
+
+        $indicadores = $destrezas->flatMap(fn (DestrezaCurricular $destreza) => $destreza->indicadores)->keyBy('id');
+        $listaDestrezas = $destrezas->map(fn (DestrezaCurricular $destreza): string => "D{$destreza->id} [{$destreza->curriculo?->nombre}] {$destreza->codigo} {$destreza->descripcion}\n   Indicadores vinculados: "
+            .$destreza->indicadores->map(fn (IndicadorEvaluacion $indicador): string => "I{$indicador->id}")->implode(', '))->implode("\n");
+        $listaIndicadores = $indicadores->map(fn (IndicadorEvaluacion $indicador): string => "I{$indicador->id} {$indicador->codigo} {$indicador->descripcion}")->implode("\n");
+        $contextoUnidad = filled($tituloUnidad) ? "\nUnidad: {$tituloUnidad}." : '';
+        $contextoIndicaciones = filled($indicaciones) ? "\nIndicaciones del docente: {$indicaciones}." : '';
+        $contextoTema = match (true) {
+            filled($tema) => "Tema libre definido por el docente: {$tema}.",
+            filled($indicaciones) => 'El docente todavía no escribió el tema; deduce el contenido de la clase a partir de sus indicaciones.',
+            filled($tituloUnidad) => 'El docente todavía no escribió el tema; elige la destreza más pertinente para trabajar la unidad indicada.',
+            default => 'El docente todavía no escribió el tema; elige una destreza fundamental y apropiada para el curso.',
+        };
+        $prompt = <<<PROMPT
+Selecciona la destreza con criterios de desempeño y el indicador de evaluación que mejor correspondan a una clase de {$asignacion->materia->nombre} para {$asignacion->seccion->curso->nombre}.
+{$contextoTema}{$contextoUnidad}{$contextoIndicaciones}
+
+DESTREZAS DISPONIBLES (usa solo estos identificadores):
+{$listaDestrezas}
+
+INDICADORES DISPONIBLES:
+{$listaIndicadores}
+
+REGLAS:
+1. Elegir la destreza cuyo contenido trabaje directamente el tema; si dos son igual de pertinentes, preferir el Currículo priorizado 2025.
+2. Elegir un indicador que esté en la lista de «Indicadores vinculados» de la destreza elegida y que permita evaluar ese tema.
+3. Devolver solo el objeto JSON con los identificadores elegidos, por ejemplo D12 e I40.
+PROMPT;
+        $esquema = [
+            'type' => 'object',
+            'properties' => [
+                'destreza' => ['type' => 'string', 'enum' => $destrezas->keys()->map(fn (int $id): string => "D{$id}")->values()->all()],
+                'indicador' => ['type' => 'string', 'enum' => $indicadores->keys()->map(fn (int $id): string => "I{$id}")->values()->all()],
+            ],
+            'required' => ['destreza', 'indicador'],
+            'additionalProperties' => false,
+        ];
+
+        foreach ([false, true] as $esReintento) {
+            $promptActual = $esReintento
+                ? $prompt."\n\nREINTENTO: el indicador debe pertenecer a los «Indicadores vinculados» de la destreza elegida."
+                : $prompt;
+            $respuesta = json_decode($this->limpiarJson($this->consultarGemini($promptActual, $esquema, 60)), true);
+            $destreza = $destrezas->get((int) ltrim((string) ($respuesta['destreza'] ?? ''), 'Dd'));
+            if (! $destreza) {
+                continue;
+            }
+
+            $indicador = $destreza->indicadores->firstWhere('id', (int) ltrim((string) ($respuesta['indicador'] ?? ''), 'Ii'));
+            if ($indicador || $esReintento) {
+                return ['destreza' => $destreza, 'indicador' => $indicador ?? $destreza->indicadores->first()];
+            }
+        }
+
+        throw new UnexpectedValueException('Gemini no eligió una destreza válida del catálogo.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $esquema
+     */
+    private function consultarGemini(string $prompt, array $esquema, int $maximoTokens): string
+    {
+        $respuesta = Http::baseUrl('https://generativelanguage.googleapis.com/v1beta')
+            ->withHeaders(['x-goog-api-key' => config('services.gemini.api_key')])
+            ->connectTimeout((int) config('services.gemini.connect_timeout'))
+            ->timeout((int) config('services.gemini.timeout'))
+            ->post('/models/'.config('services.gemini.model').':generateContent', [
+                'systemInstruction' => [
+                    'parts' => [[
+                        'text' => 'Eres un especialista ecuatoriano en planificación microcurricular, ciclo ERCA y Diseño Universal para el Aprendizaje. Redacta siempre en español y expresa todas las acciones pedagógicas con verbos en infinitivo.',
+                    ]],
+                ],
+                'contents' => [[
+                    'role' => 'user',
+                    'parts' => [['text' => $prompt]],
+                ]],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => $maximoTokens,
+                    'responseMimeType' => 'application/json',
+                    'responseJsonSchema' => $esquema,
+                ],
+            ])->throw();
+
+        return (string) $respuesta->json('candidates.0.content.parts.0.text');
+    }
+
+    private function limpiarJson(string $contenido): string
+    {
+        return trim(preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($contenido)) ?? $contenido);
     }
 
     /**

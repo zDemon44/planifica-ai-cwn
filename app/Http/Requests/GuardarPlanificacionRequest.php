@@ -20,6 +20,32 @@ class GuardarPlanificacionRequest extends FormRequest
             : Gate::allows('create', Planificacion::class);
     }
 
+    /**
+     * El selector de tema envía «taller» como valor especial; se traduce a la bandera es_taller.
+     */
+    protected function prepareForValidation(): void
+    {
+        $periodos = $this->input('periodos');
+        if (! is_array($periodos)) {
+            return;
+        }
+
+        foreach ($periodos as $indice => $periodo) {
+            if (! is_array($periodo)) {
+                continue;
+            }
+            $esTaller = ($periodo['tema_libro_id'] ?? null) === 'taller';
+            $periodos[$indice]['es_taller'] = $esTaller;
+            if ($esTaller) {
+                $periodos[$indice]['tema_libro_id'] = null;
+            } else {
+                unset($periodos[$indice]['temas_taller']);
+            }
+        }
+
+        $this->merge(['periodos' => $periodos]);
+    }
+
     public function rules(): array
     {
         $planificacion = $this->route('planificacion');
@@ -42,6 +68,9 @@ class GuardarPlanificacionRequest extends FormRequest
             'periodos' => ['required', 'array', 'min:1', 'max:40'],
             'periodos.*' => ['required', 'array'],
             'periodos.*.tema_libro_id' => ['nullable', 'integer', 'exists:temas_libro,id'],
+            'periodos.*.es_taller' => ['boolean'],
+            'periodos.*.temas_taller' => ['nullable', 'array', 'max:15'],
+            'periodos.*.temas_taller.*' => ['integer', 'distinct', 'exists:temas_libro,id'],
             'periodos.*.destreza_curricular_id' => ['nullable', 'integer', 'exists:destrezas_curriculares,id'],
             'periodos.*.indicador_evaluacion_id' => ['nullable', 'integer', 'exists:indicadores_evaluacion,id'],
             'periodos.*.destrezas_criterios_desempeno' => ['prohibited'],
@@ -89,6 +118,8 @@ class GuardarPlanificacionRequest extends FormRequest
             'exists' => 'Selecciona una asignación válida.',
             'unidad_libro_id.exists' => 'Selecciona una unidad válida para esta planificación.',
             'periodos.*.tema_libro_id.exists' => 'Selecciona un tema válido del libro.',
+            'periodos.*.temas_taller.*.exists' => 'Selecciona temas válidos del libro para el taller.',
+            'periodos.*.temas_taller.max' => 'Un taller puede reunir hasta 15 temas.',
             'numero_semana.unique' => 'Ya existe una planificación para esta asignación y semana.',
             'fecha_fin.after_or_equal' => 'La fecha final debe ser igual o posterior a la inicial.',
             'periodos.required' => 'La materia debe tener períodos configurados en su horario.',
@@ -102,7 +133,8 @@ class GuardarPlanificacionRequest extends FormRequest
             'objetivo_curricular_ids' => 'objetivos de aprendizaje',
             'objetivo_curricular_ids.*' => 'objetivo de aprendizaje',
             'unidad_libro_id' => 'unidad del libro',
-            'periodos.*.tema_libro_id' => 'tema del libro',
+            'periodos.*.tema_libro_id' => 'tema de la unidad',
+            'periodos.*.temas_taller' => 'temas del taller',
             'periodos.*.destreza_curricular_id' => 'destreza con criterios de desempeño',
             'periodos.*.indicador_evaluacion_id' => 'indicador de evaluación',
             'periodos.*.recursos' => 'recursos',

@@ -7,6 +7,7 @@ use App\Models\Asignacion;
 use App\Models\DestrezaCurricular;
 use App\Models\IndicadorEvaluacion;
 use App\Services\GeneradorPeriodoPlanificacion;
+use DomainException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Throwable;
@@ -28,39 +29,53 @@ class AsistentePlanificacionController extends Controller
             ->whereHas('seccion.periodo', fn ($consulta) => $consulta->where('cerrado', false))
             ->findOrFail($request->integer('asignacion_id'));
         $grado = $asignacion->seccion->curso->grado;
+        $tema = $request->string('tema')->trim()->toString() ?: null;
+        $tituloUnidad = $request->string('titulo_unidad')->trim()->toString() ?: null;
+        $indicaciones = $request->string('indicaciones')->trim()->toString() ?: null;
+        $enfoque = $request->validated('enfoque');
+        $seleccionAutomatica = ! $request->filled('destreza_curricular_id');
 
-        $destreza = DestrezaCurricular::whereKey($request->integer('destreza_curricular_id'))
-            ->where('materia_id', $asignacion->materia_id)
-            ->where('grado', $grado)
-            ->where('activo', true)
-            ->first();
-        $indicador = IndicadorEvaluacion::whereKey($request->integer('indicador_evaluacion_id'))
-            ->where('materia_id', $asignacion->materia_id)
-            ->where('grado', $grado)
-            ->where('activo', true)
-            ->first();
+        if (! $seleccionAutomatica) {
+            $destreza = DestrezaCurricular::whereKey($request->integer('destreza_curricular_id'))
+                ->where('materia_id', $asignacion->materia_id)
+                ->where('grado', $grado)
+                ->where('activo', true)
+                ->first();
+            $indicador = IndicadorEvaluacion::whereKey($request->integer('indicador_evaluacion_id'))
+                ->where('materia_id', $asignacion->materia_id)
+                ->where('grado', $grado)
+                ->where('activo', true)
+                ->first();
 
-        if (! $destreza || ! $indicador || ! $destreza->indicadores()->whereKey($indicador->id)->exists()) {
-            return response()->json([
-                'message' => 'Selecciona una destreza y uno de sus indicadores relacionados.',
-                'errors' => ['indicador_evaluacion_id' => ['El indicador no corresponde a la destreza seleccionada.']],
-            ], 422);
+            if (! $destreza || ! $indicador || ! $destreza->indicadores()->whereKey($indicador->id)->exists()) {
+                return response()->json([
+                    'message' => 'Selecciona una destreza y uno de sus indicadores relacionados.',
+                    'errors' => ['indicador_evaluacion_id' => ['El indicador no corresponde a la destreza seleccionada.']],
+                ], 422);
+            }
         }
 
-        $enfoque = $request->validated('enfoque');
-
         try {
+            if ($seleccionAutomatica) {
+                ['destreza' => $destreza, 'indicador' => $indicador] = $generador->seleccionarCurriculo($asignacion, $tema, $tituloUnidad, $indicaciones);
+            }
+
             $propuesta = $generador->generar(
                 $asignacion,
                 $destreza,
                 $indicador,
                 $request->integer('duracion_minutos'),
-                $request->string('titulo_unidad')->trim()->toString() ?: null,
-                $request->string('tema')->trim()->toString() ?: null,
-                $request->string('indicaciones')->trim()->toString() ?: null,
+                $tituloUnidad,
+                $tema,
+                $indicaciones,
                 $enfoque,
                 $request->validated('contenido_actual') ?? [],
             );
+        } catch (DomainException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => ['destreza_curricular_id' => [$exception->getMessage()]],
+            ], 422);
         } catch (UnexpectedValueException $exception) {
             report($exception);
 
@@ -87,11 +102,15 @@ class AsistentePlanificacionController extends Controller
             ], 503);
         }
 
-        return response()->json([
+        return response()->json(array_filter([
             'message' => $enfoque
                 ? 'Propuesta generada para «'.GeneradorPeriodoPlanificacion::ETIQUETAS[$enfoque].'». Revísala antes de guardar el borrador.'
                 : 'Propuesta generada. Revísala antes de guardar el borrador.',
             'propuesta' => $propuesta,
-        ]);
+            'seleccion' => $seleccionAutomatica ? [
+                'destreza_curricular_id' => $destreza->id,
+                'indicador_evaluacion_id' => $indicador->id,
+            ] : null,
+        ], fn (mixed $valor): bool => $valor !== null));
     }
 }

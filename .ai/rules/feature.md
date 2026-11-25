@@ -13,3 +13,6 @@ Cada clase del horario equivale a 45 minutos. Agrupar bloques de la misma materi
 
 ## El recreo no divide un bloque pedagógico
 Esta regla reemplaza cualquier nota anterior que indicara que el recreo separa bloques. Dos clases de la misma materia y día, ubicadas inmediatamente antes y después del recreo institucional configurado, comparten un solo conjunto pedagógico; cuentan como dos períodos de 45 minutos.
+
+## Bloques de taller con varios temas del libro
+El selector «Tema de la unidad» acepta el valor especial `taller`; GuardarPlanificacionRequest lo traduce a `es_taller` y los temas van en `temas_taller[]` (pivote periodo_planificacion_tema_libro con orden). Pueden ser de cualquier unidad activa del libro de la materia y grado. Si los temas tienen varias parejas destreza-indicador, el docente elige una y el servidor exige que sea la de alguno de los temas; con una sola pareja se asigna sola. Sin título, el tema se guarda como «Taller: …».

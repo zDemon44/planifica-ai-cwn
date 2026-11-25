@@ -276,8 +276,17 @@
                                     @endif
                                 </p>
                             </div>
-                        </div><span class="planning-period-badge">{{ $fin - $inicio + 1 }}
-                            período{{ $fin === $inicio ? '' : 's' }}</span>
+                        </div>
+                        <div class="planning-period-header-actions">
+                            @if(auth()->user()->role === 'DOCENTE')
+                                <button class="copilot-block-trigger" type="button" data-ai-open="{{ $indice }}"
+                                    title="Abre el copiloto para este bloque. También puedes usar ✦ junto a cada campo." aria-label="Abrir el copiloto para el bloque {{ str_pad($indice + 1, 2, '0', STR_PAD_LEFT) }}">
+                                    <span aria-hidden="true">✦</span> Copiloto
+                                </button>
+                            @endif
+                            <span class="planning-period-badge">{{ $fin - $inicio + 1 }}
+                                período{{ $fin === $inicio ? '' : 's' }}</span>
+                        </div>
                     </header>
                     <div class="planning-period-fields">
                         @php
@@ -300,19 +309,24 @@
                                 ? $unidadLibroSeleccionada?->temas->firstWhere('id', $temaLibroSeleccionado)
                                 : null;
                             $usaLibro = $unidadesLibro->isNotEmpty();
+                            $esTaller = $usaLibro && (old("periodos.$indice.tema_libro_id") === 'taller'
+                                || (bool) old("periodos.$indice.es_taller", $bloque['es_taller'] ?? false));
+                            $temasTaller = collect(old("periodos.$indice.temas_taller", $bloque['temas_taller'] ?? []))
+                                ->map(fn ($id): int => (int) $id)->all();
                         @endphp
                         <section class="planning-period-topic {{ $usaLibro ? 'has-book' : '' }}">
                             <div class="planning-period-field-heading">
                                 <span>01</span>
-                                <div><strong>Tema del período</strong><small>{{ $usaLibro ? 'Elige un tema del libro o escribe uno propio.' : 'Escribe el tema que se desarrollará en este bloque.' }}</small></div>
+                                <div><strong>Tema del período</strong><small>{{ $usaLibro ? 'Elige un tema de la unidad, arma un taller o escribe uno propio.' : 'Escribe el tema que se desarrollará en este bloque.' }}</small></div>
                             </div>
                             @if ($usaLibro)
                                 <div class="field planning-book-topic">
-                                    <label for="periodos_{{ $indice }}_tema_libro">Tema del libro</label>
+                                    <label for="periodos_{{ $indice }}_tema_libro">Tema de la unidad</label>
                                     <select id="periodos_{{ $indice }}_tema_libro"
                                         class="book-topic-select" name="periodos[{{ $indice }}][tema_libro_id]"
-                                        data-period="{{ $indice }}" data-selected="{{ $temaLibroSeleccionado }}">
+                                        data-period="{{ $indice }}" data-selected="{{ $esTaller ? 'taller' : $temaLibroSeleccionado }}">
                                         <option value="">Tema libre</option>
+                                        <option value="taller" @selected($esTaller)>Taller · varios temas del libro</option>
                                         @foreach ($unidadLibroSeleccionada?->temas ?? collect() as $temaLibro)
                                             <option value="{{ $temaLibro->id }}" @selected($temaLibroSeleccionado === $temaLibro->id)
                                                 @disabled(!$temaLibro->destreza_curricular_id || !$temaLibro->indicador_evaluacion_id)>
@@ -324,10 +338,49 @@
                                         <small class="field-error">{{ $message }}</small>
                                     @enderror
                                 </div>
+                                <div class="planning-workshop" id="periodos_{{ $indice }}_taller" data-period="{{ $indice }}" @unless ($esTaller) hidden @endunless>
+                                    <div class="planning-workshop-heading">
+                                        <strong>Temas del taller</strong>
+                                        <span data-workshop-total>{{ count($temasTaller) === 1 ? '1 tema' : count($temasTaller).' temas' }}</span>
+                                    </div>
+                                    <div class="planning-workshop-quick" hidden>
+                                        <small>Elegidos en bloques anteriores</small>
+                                        <div data-workshop-quick></div>
+                                    </div>
+                                    <div class="planning-workshop-units">
+                                        @foreach ($unidadesLibro as $unidadTaller)
+                                            @php
+                                                $marcadosUnidad = $unidadTaller->temas->whereIn('id', $temasTaller)->count();
+                                            @endphp
+                                            <details class="planning-workshop-unit" @if ($marcadosUnidad || (!$temasTaller && $unidadTaller->id === $unidadLibroSeleccionada?->id)) open @endif>
+                                                <summary><span>Unidad {{ $unidadTaller->numero }} · {{ $unidadTaller->titulo }}</span><small data-workshop-count>{{ $marcadosUnidad ?: '' }}</small></summary>
+                                                <div class="planning-workshop-topics">
+                                                    @foreach ($unidadTaller->temas as $temaTaller)
+                                                        <label class="planning-workshop-topic">
+                                                            <input type="checkbox" name="periodos[{{ $indice }}][temas_taller][]" value="{{ $temaTaller->id }}"
+                                                                data-destreza="{{ $temaTaller->destreza_curricular_id }}" data-indicador="{{ $temaTaller->indicador_evaluacion_id }}"
+                                                                data-titulo="{{ $temaTaller->titulo }}" data-etiqueta="U{{ $unidadTaller->numero }} · {{ $temaTaller->etiqueta }}"
+                                                                @checked(in_array($temaTaller->id, $temasTaller, true)) @disabled(!$esTaller)>
+                                                            <span><b>{{ $temaTaller->etiqueta }}</b> {{ $temaTaller->titulo }}</span>
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+                                            </details>
+                                        @endforeach
+                                    </div>
+                                    <div class="planning-workshop-conflict" role="group" aria-labelledby="periodos_{{ $indice }}_taller_choque" hidden>
+                                        <strong id="periodos_{{ $indice }}_taller_choque">Los temas tienen destrezas o indicadores distintos</strong>
+                                        <p>Elige con cuál quedarte para este bloque:</p>
+                                        <div data-workshop-options></div>
+                                    </div>
+                                    @error("periodos.$indice.temas_taller")
+                                        <small class="field-error">{{ $message }}</small>
+                                    @enderror
+                                </div>
                             @endif
                             <div class="field planning-textarea planning-topic-text" id="periodos_{{ $indice }}_tema_libre"
-                                @if ($usaLibro && $temaLibroActual) hidden @endif>
-                                <label for="periodos_{{ $indice }}_tema">{{ $usaLibro ? 'Escribe tu tema' : 'Tema' }}</label>
+                                @if ($usaLibro && $temaLibroActual && !$esTaller) hidden @endif>
+                                <label for="periodos_{{ $indice }}_tema">{{ $esTaller ? 'Título del taller' : ($usaLibro ? 'Escribe tu tema' : 'Tema') }}</label>
                                 <textarea id="periodos_{{ $indice }}_tema" name="periodos[{{ $indice }}][tema]" rows="2"
                                     placeholder="Ej.: Resolución de problemas con sumas de tres cifras">{{ old("periodos.$indice.tema", $bloque['tema'] ?? '') }}</textarea>
                                 @error("periodos.$indice.tema")
@@ -397,12 +450,6 @@
                                 <small class="field-error">{{ $message }}</small>
                             @enderror
                         </div>
-                        @if(auth()->user()->role === 'DOCENTE')
-                            <div class="planning-ai-launch">
-                                <div><span aria-hidden="true">✦</span><div><strong>¿Necesitas ayuda con este bloque?</strong><small>Prepara todo el bloque o usa ✦ junto a cualquier campo para trabajar solo en él.</small></div></div>
-                                <button type="button" data-ai-open="{{ $indice }}">Abrir copiloto</button>
-                            </div>
-                        @endif
                         <div class="field planning-textarea planning-period-full"><label
                                 for="periodos_{{ $indice }}_recursos">Recursos</label>
                             <textarea id="periodos_{{ $indice }}_recursos" name="periodos[{{ $indice }}][recursos]" rows="3">{{ old("periodos.$indice.recursos", $bloque['recursos'] ?? '') }}</textarea>
@@ -637,10 +684,23 @@
             const copilotoBloque = document.getElementById('copilot-bloque');
             const copilotoEnfoque = document.getElementById('copilot-enfoque');
 
+            const usaTemaLibre = periodo => {
+                const contenedorTema = document.getElementById(`periodos_${periodo}_tema_libre`);
+                return Boolean(contenedorTema && !contenedorTema.hidden);
+            };
+
+            const baseSeleccionIa = periodo => {
+                if (document.getElementById(`periodos_${periodo}_tema`)?.value.trim()) return 'según tu tema';
+                if (document.getElementById('copilot-indicaciones')?.value.trim()) return 'según tus indicaciones';
+                return document.getElementById('titulo_unidad')?.value.trim() ? 'según la unidad y propondrá el tema' : 'y propondrá el tema';
+            };
+
             const actualizarBotonIa = periodo => {
                 if (!copiloto || String(periodo) !== copilotoBloque.value) return;
                 const { destreza, indicador } = controles(periodo);
-                const listo = Boolean(destreza?.value && indicador?.value);
+                const curriculoListo = Boolean(destreza?.value && indicador?.value);
+                const eligeIa = !curriculoListo && usaTemaLibre(periodo);
+                const listo = curriculoListo || eligeIa;
                 const boton = copiloto.querySelector('.copilot-generate');
                 if (!boton.classList.contains('is-loading')) {
                     boton.disabled = !listo || generacionIaActiva;
@@ -649,9 +709,11 @@
                 const entradaEnfocada = enfoque ? document.getElementById(`periodos_${periodo}_${enfoque}`) : null;
                 const minutos = copilotoBloque.selectedOptions[0]?.dataset.duration;
                 copiloto.querySelector('.copilot-readiness').classList.toggle('is-ready', listo);
-                copiloto.querySelector('[data-copilot-ready-title]').textContent = listo
+                copiloto.querySelector('[data-copilot-ready-title]').textContent = curriculoListo
                     ? 'Contexto curricular listo'
-                    : 'Selecciona la destreza y el indicador del bloque';
+                    : (eligeIa
+                        ? `La IA elegirá la destreza y su indicador ${baseSeleccionIa(periodo)}`
+                        : 'Elige la destreza y el indicador del bloque');
                 copiloto.querySelector('[data-copilot-ready-detail]').textContent = !enfoque
                     ? `${minutos} minutos · se propondrán todos los campos del bloque`
                     : (entradaEnfocada?.value.trim()
@@ -821,10 +883,171 @@
                 });
             };
 
+            const tallerDe = periodo => document.getElementById(`periodos_${periodo}_taller`);
+            const casillasTaller = periodo => [...(tallerDe(periodo)?.querySelectorAll('input[type="checkbox"]') ?? [])];
+            const textoOpcion = (select, valor) => [...select.options].find(opcion => opcion.value === String(valor))?.textContent.trim() || '';
+
+            const fijarCurriculo = (periodo, destrezaId, indicadorId, bloquear) => {
+                const { destreza, indicador } = controles(periodo);
+                destreza.dataset.topicLocked = bloquear ? 'true' : 'false';
+                indicador.dataset.topicLocked = bloquear ? 'true' : 'false';
+                if (destreza.value !== String(destrezaId ?? '')) {
+                    destreza.value = String(destrezaId ?? '');
+                    destreza.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                if (indicadorId && indicador.value !== String(indicadorId)) {
+                    indicador.value = String(indicadorId);
+                    indicador.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                selectoresCatalogo.get(destreza)?.reconstruir();
+                selectoresCatalogo.get(indicador)?.reconstruir();
+            };
+
+            const temasDeBloquesAnteriores = periodo => {
+                const temas = new Map();
+                document.querySelectorAll('.book-topic-select').forEach(selector => {
+                    const otro = Number(selector.dataset.period);
+                    if (otro >= Number(periodo)) return;
+                    const ids = selector.value === 'taller'
+                        ? casillasTaller(otro).filter(casilla => casilla.checked).map(casilla => casilla.value)
+                        : (selector.value ? [selector.value] : []);
+                    ids.forEach(id => {
+                        const casilla = casillasTaller(periodo).find(candidata => candidata.value === String(id));
+                        if (casilla) temas.set(String(id), casilla);
+                    });
+                });
+                return [...temas.values()];
+            };
+
+            const renderizarOpcionesRapidas = periodo => {
+                const taller = tallerDe(periodo);
+                if (!taller || taller.hidden) return;
+                const casillas = temasDeBloquesAnteriores(periodo);
+                const contenedor = taller.querySelector('[data-workshop-quick]');
+                contenedor.replaceChildren(...casillas.map(casilla => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'planning-workshop-chip';
+                    chip.setAttribute('aria-pressed', casilla.checked ? 'true' : 'false');
+                    chip.textContent = `${casilla.checked ? '✓ ' : '+ '}${casilla.dataset.etiqueta} · ${casilla.dataset.titulo}`;
+                    chip.addEventListener('click', () => {
+                        casilla.checked = !casilla.checked;
+                        casilla.closest('details').open = true;
+                        casilla.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    return chip;
+                }));
+                taller.querySelector('.planning-workshop-quick').hidden = casillas.length === 0;
+            };
+
+            const actualizarTaller = periodo => {
+                const taller = tallerDe(periodo);
+                if (!taller || taller.hidden) return;
+                const marcadas = casillasTaller(periodo).filter(casilla => casilla.checked);
+                taller.querySelector('[data-workshop-total]').textContent = marcadas.length === 1 ? '1 tema' : `${marcadas.length} temas`;
+                taller.querySelectorAll('.planning-workshop-unit').forEach(unidad => {
+                    const cantidad = unidad.querySelectorAll('input:checked').length;
+                    unidad.querySelector('[data-workshop-count]').textContent = cantidad || '';
+                });
+
+                const campoTema = document.getElementById(`periodos_${periodo}_tema`);
+                if (campoTema && campoTema.dataset.tituloManual !== 'true') {
+                    campoTema.value = marcadas.length ? `Taller: ${marcadas.map(casilla => casilla.dataset.titulo).join('; ')}` : '';
+                }
+
+                const parejas = [];
+                marcadas.forEach(casilla => {
+                    const { destreza, indicador } = casilla.dataset;
+                    if (!destreza || !indicador) return;
+                    const existente = parejas.find(pareja => pareja.destreza === destreza && pareja.indicador === indicador);
+                    if (existente) {
+                        existente.temas.push(casilla.dataset.etiqueta);
+                    } else {
+                        parejas.push({ destreza, indicador, temas: [casilla.dataset.etiqueta] });
+                    }
+                });
+
+                const { destreza, indicador } = controles(periodo);
+                const choque = taller.querySelector('.planning-workshop-conflict');
+                const opciones = choque.querySelector('[data-workshop-options]');
+                choque.hidden = parejas.length < 2;
+                opciones.replaceChildren();
+
+                if (parejas.length === 0) {
+                    destreza.dataset.topicLocked = 'false';
+                    indicador.dataset.topicLocked = 'false';
+                    selectoresCatalogo.get(destreza)?.reconstruir();
+                    selectoresCatalogo.get(indicador)?.reconstruir();
+                    return;
+                }
+                if (parejas.length === 1) {
+                    fijarCurriculo(periodo, parejas[0].destreza, parejas[0].indicador, true);
+                    return;
+                }
+
+                const actual = parejas.find(pareja => pareja.destreza === destreza.value && pareja.indicador === indicador.value);
+                parejas.forEach((pareja, posicion) => {
+                    const opcion = document.createElement('label');
+                    opcion.className = 'planning-workshop-option';
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = `periodos_${periodo}_taller_pareja`;
+                    radio.checked = pareja === actual;
+                    const detalle = document.createElement('span');
+                    const temas = document.createElement('small');
+                    temas.textContent = pareja.temas.join(', ');
+                    const textoDestreza = document.createElement('strong');
+                    textoDestreza.textContent = textoOpcion(destreza, pareja.destreza) || `Destreza ${posicion + 1}`;
+                    const indicadorRelacionado = (relacionados[pareja.destreza] || []).find(item => String(item.id) === pareja.indicador);
+                    const textoIndicador = document.createElement('em');
+                    textoIndicador.textContent = indicadorRelacionado ? descripcionSinCodigo(indicadorRelacionado) : '';
+                    detalle.append(temas, textoDestreza, textoIndicador);
+                    radio.addEventListener('change', () => fijarCurriculo(periodo, pareja.destreza, pareja.indicador, true));
+                    opcion.append(radio, detalle);
+                    opciones.append(opcion);
+                });
+                if (!actual) fijarCurriculo(periodo, '', null, true);
+            };
+
+            const activarTaller = (periodo, activo) => {
+                const taller = tallerDe(periodo);
+                if (!taller) return;
+                const campoTema = document.getElementById(`periodos_${periodo}_tema`);
+                const etiquetaTema = document.querySelector(`label[for="periodos_${periodo}_tema"]`);
+                const estabaActivo = !taller.hidden;
+                taller.hidden = !activo;
+                casillasTaller(periodo).forEach(casilla => casilla.disabled = !activo);
+                if (etiquetaTema?.firstChild) etiquetaTema.firstChild.textContent = activo ? 'Título del taller' : 'Escribe tu tema';
+                if (activo) {
+                    if (campoTema && !estabaActivo) {
+                        campoTema.dataset.tituloManual = campoTema.value.trim() && !campoTema.value.startsWith('Taller:') ? 'true' : 'false';
+                    }
+                    renderizarOpcionesRapidas(periodo);
+                    actualizarTaller(periodo);
+                } else if (campoTema) {
+                    delete campoTema.dataset.tituloManual;
+                }
+            };
+
+            document.querySelectorAll('.planning-workshop').forEach(taller => {
+                const periodo = taller.dataset.period;
+                taller.addEventListener('change', evento => {
+                    if (evento.target.matches('input[type="checkbox"]')) {
+                        actualizarTaller(periodo);
+                        renderizarOpcionesRapidas(periodo);
+                        document.querySelectorAll('.planning-workshop').forEach(otro => renderizarOpcionesRapidas(otro.dataset.period));
+                    }
+                });
+                document.getElementById(`periodos_${periodo}_tema`)?.addEventListener('input', evento => {
+                    if (!taller.hidden && evento.isTrusted) evento.target.dataset.tituloManual = evento.target.value.trim() ? 'true' : 'false';
+                });
+            });
+
             const aplicarTemaLibro = (selector, limpiarTemaLibre = false) => {
                 const periodo = selector.dataset.period;
                 const unidad = unidadActual();
-                const temaLibro = unidad?.temas.find(tema => String(tema.id) === selector.value && tema.disponible);
+                const esTaller = selector.value === 'taller';
+                const temaLibro = esTaller ? null : unidad?.temas.find(tema => String(tema.id) === selector.value && tema.disponible);
                 const { destreza, indicador } = controles(periodo);
                 const campoTema = document.getElementById(`periodos_${periodo}_tema`);
                 const temaLibre = document.getElementById(`periodos_${periodo}_tema_libre`);
@@ -833,6 +1056,8 @@
                 indicador.dataset.topicLocked = temaLibro ? 'true' : 'false';
                 if (temaLibre) temaLibre.hidden = Boolean(temaLibro);
                 selector.title = selector.selectedOptions[0]?.textContent.trim() || '';
+                activarTaller(periodo, esTaller);
+                if (esTaller) return;
 
                 if (temaLibro) {
                     campoTema.value = temaLibro.titulo;
@@ -853,8 +1078,9 @@
             const cargarTemasUnidad = (limpiarSeleccion = false) => {
                 const unidad = unidadActual();
                 document.querySelectorAll('.book-topic-select').forEach(selector => {
-                    const seleccionAnterior = limpiarSeleccion ? '' : selector.dataset.selected || selector.value;
-                    selector.replaceChildren(new Option('Tema libre', ''));
+                    const conservaTaller = selector.value === 'taller' || selector.dataset.selected === 'taller';
+                    const seleccionAnterior = limpiarSeleccion && !conservaTaller ? '' : selector.dataset.selected || selector.value;
+                    selector.replaceChildren(new Option('Tema libre', ''), new Option('Taller · varios temas del libro', 'taller'));
                     unidad?.temas.forEach(tema => {
                         const sufijo = tema.disponible ? '' : ' · Pendiente de catálogo';
                         const opcion = new Option(`${tema.etiqueta} · ${tema.titulo}${sufijo}`, tema.id);
@@ -874,6 +1100,7 @@
                     selector.dataset.selected = selector.value;
                     aplicarTemaLibro(selector, true);
                     if (!selector.value) document.getElementById(`periodos_${selector.dataset.period}_tema`)?.focus();
+                    document.querySelectorAll('.planning-workshop').forEach(taller => renderizarOpcionesRapidas(taller.dataset.period));
                 });
             });
 
@@ -913,7 +1140,8 @@
                 aplicacion: 'Aplicación',
                 dua_aplicacion: 'DUA de la aplicación',
                 tecnica_evaluacion: 'Técnica de evaluación',
-                instrumento_evaluacion: 'Instrumento de evaluación'
+                instrumento_evaluacion: 'Instrumento de evaluación',
+                seleccion: 'Destreza e indicador'
             };
             const camposEnfocables = camposGenerados.filter(campo => campo !== 'tema');
             const estadoCopiloto = copiloto.querySelector('.copilot-status');
@@ -934,9 +1162,23 @@
                 document.getElementById(`bloque-${periodo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             };
 
+            let sincronizandoSelect = false;
+
+            /**
+             * Cambia un select por código y avisa con «change» para que el selector visual
+             * (public/js/selects.js) se redibuje, sin repetir los efectos de los oyentes del copiloto.
+             */
+            const sincronizarSelect = (select, valor) => {
+                if (select.value === valor) return;
+                select.value = valor;
+                sincronizandoSelect = true;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                sincronizandoSelect = false;
+            };
+
             const abrirCopiloto = (periodo, enfoque = '', activador = null) => {
-                copilotoBloque.value = String(periodo);
-                copilotoEnfoque.value = enfoque;
+                sincronizarSelect(copilotoBloque, String(periodo));
+                sincronizarSelect(copilotoEnfoque, enfoque);
                 activadorCopiloto = activador;
                 copiloto.hidden = false;
                 document.body.classList.add('copilot-open');
@@ -962,10 +1204,12 @@
             });
             copiloto.querySelector('.copilot-close').addEventListener('click', cerrarCopiloto);
             copilotoBloque.addEventListener('change', () => {
+                if (sincronizandoSelect) return;
                 actualizarBotonIa(copilotoBloque.value);
                 irABloque(copilotoBloque.value);
             });
             copilotoEnfoque.addEventListener('change', () => {
+                if (sincronizandoSelect) return;
                 actualizarBotonIa(copilotoBloque.value);
                 const enfoque = copilotoEnfoque.value;
                 if (enfoque) {
@@ -973,6 +1217,8 @@
                         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
+
+            copiloto.querySelector('#copilot-indicaciones').addEventListener('input', () => actualizarBotonIa(copilotoBloque.value));
 
             document.querySelectorAll('.planning-period-card').forEach(tarjeta => {
                 const periodo = tarjeta.dataset.period;
@@ -1009,10 +1255,7 @@
                     const bloque = document.createElement('small');
                     bloque.textContent = `Bloque ${numeroBloque(cambio.periodo)} · `;
                     ir.append(bloque, etiquetasCampos[cambio.campo]);
-                    ir.addEventListener('click', () => {
-                        cambio.entrada.closest('.field').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        cambio.entrada.focus({ preventScroll: true });
-                    });
+                    ir.addEventListener('click', () => cambio.irA());
                     const descartar = document.createElement('button');
                     descartar.type = 'button';
                     descartar.className = 'copilot-icon-button is-discard';
@@ -1046,11 +1289,8 @@
             function resolverCambio(id, mantener, silencioso = false) {
                 const cambio = cambiosPendientes.get(id);
                 if (!cambio) return;
-                if (!mantener) escribirEnCampo(cambio.entrada, cambio.original);
-                cambio.barra.remove();
-                cambio.anterior.remove();
-                cambio.contenedor.classList.remove('copilot-pending');
-                cambio.entrada.removeEventListener('input', cambio.alEditar);
+                if (!mantener) cambio.restaurar();
+                cambio.limpiar();
                 cambiosPendientes.delete(id);
                 renderizarCambios();
                 if (!silencioso && cambiosPendientes.size === 0) {
@@ -1108,7 +1348,90 @@
                 descartar.addEventListener('click', () => resolverCambio(entrada.id, false));
                 mantener.addEventListener('click', () => resolverCambio(entrada.id, true));
                 entrada.addEventListener('input', alEditar);
-                cambiosPendientes.set(entrada.id, { periodo, campo, entrada, contenedor, original, barra, anterior, alEditar });
+                cambiosPendientes.set(entrada.id, {
+                    periodo,
+                    campo,
+                    original,
+                    restaurar: () => escribirEnCampo(entrada, original),
+                    limpiar: () => {
+                        barra.remove();
+                        anterior.remove();
+                        contenedor.classList.remove('copilot-pending');
+                        entrada.removeEventListener('input', alEditar);
+                    },
+                    irA: () => {
+                        contenedor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        entrada.focus({ preventScroll: true });
+                    }
+                });
+
+                return true;
+            };
+
+            const elegirEnCatalogo = (select, valor) => {
+                aplicandoCambio = true;
+                select.value = String(valor);
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                aplicandoCambio = false;
+            };
+
+            const proponerSeleccion = (periodo, seleccion) => {
+                const { destreza, indicador } = controles(periodo);
+                if (!destreza || !indicador || !seleccion?.destreza_curricular_id) return false;
+                const id = `periodos_${periodo}_seleccion`;
+                const campos = [destreza, indicador].map(select => select.closest('.field'));
+                const original = { destreza: destreza.value, indicador: indicador.value };
+                resolverCambio(id, true, true);
+
+                elegirEnCatalogo(destreza, seleccion.destreza_curricular_id);
+                elegirEnCatalogo(indicador, seleccion.indicador_evaluacion_id);
+                if (destreza.value !== String(seleccion.destreza_curricular_id) || indicador.value !== String(seleccion.indicador_evaluacion_id)) {
+                    elegirEnCatalogo(destreza, original.destreza);
+                    elegirEnCatalogo(indicador, original.indicador);
+                    return false;
+                }
+
+                const barra = document.createElement('div');
+                barra.className = 'copilot-inline planning-period-full';
+                const aviso = document.createElement('span');
+                aviso.textContent = '✦ Destreza e indicador elegidos por el copiloto';
+                const descartar = document.createElement('button');
+                descartar.type = 'button';
+                descartar.className = 'copilot-discard';
+                descartar.textContent = 'Descartar';
+                const mantener = document.createElement('button');
+                mantener.type = 'button';
+                mantener.className = 'copilot-keep';
+                mantener.textContent = 'Mantener';
+                barra.append(aviso, descartar, mantener);
+                campos[0].before(barra);
+                campos.forEach(campo => campo.classList.add('copilot-pending'));
+
+                const alCambiar = () => {
+                    if (!aplicandoCambio) resolverCambio(id, true);
+                };
+                destreza.addEventListener('change', alCambiar);
+                indicador.addEventListener('change', alCambiar);
+                descartar.addEventListener('click', () => resolverCambio(id, false));
+                mantener.addEventListener('click', () => resolverCambio(id, true));
+                cambiosPendientes.set(id, {
+                    periodo,
+                    campo: 'seleccion',
+                    restaurar: () => {
+                        elegirEnCatalogo(destreza, original.destreza);
+                        elegirEnCatalogo(indicador, original.indicador);
+                    },
+                    limpiar: () => {
+                        barra.remove();
+                        campos.forEach(campo => campo.classList.remove('copilot-pending'));
+                        destreza.removeEventListener('change', alCambiar);
+                        indicador.removeEventListener('change', alCambiar);
+                    },
+                    irA: () => {
+                        barra.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        mantener.focus({ preventScroll: true });
+                    }
+                });
 
                 return true;
             };
@@ -1134,7 +1457,8 @@
                 const periodo = copilotoBloque.value;
                 const enfoque = copilotoEnfoque.value;
                 const { destreza, indicador } = controles(periodo);
-                if (!destreza?.value || !indicador?.value) return;
+                const curriculoListo = Boolean(destreza?.value && indicador?.value);
+                if (!curriculoListo && !usaTemaLibre(periodo)) return;
 
                 generacionIaActiva = true;
                 const inicio = Date.now();
@@ -1147,9 +1471,9 @@
                 etiqueta.textContent = 'Preparando…';
                 contador.textContent = '00:00';
                 contador.hidden = false;
-                mostrarEstado(enfoque
+                mostrarEstado((curriculoListo ? '' : 'Eligiendo la destreza y el indicador según tu tema. ') + (enfoque
                     ? `Redactando «${etiquetasCampos[enfoque]}» con el contexto del bloque ${numeroBloque(periodo)}…`
-                    : `Organizando las actividades ERCA y sus apoyos DUA del bloque ${numeroBloque(periodo)}. Puede tardar un momento.`);
+                    : `Organizando las actividades ERCA y sus apoyos DUA del bloque ${numeroBloque(periodo)}. Puede tardar un momento.`));
 
                 try {
                     const contenidoActual = Object.fromEntries(camposGenerados.map(campo => [
@@ -1158,8 +1482,8 @@
                     const indicaciones = copiloto.querySelector('#copilot-indicaciones').value.trim();
                     const solicitud = {
                         asignacion_id: asignacionId,
-                        destreza_curricular_id: Number(destreza.value),
-                        indicador_evaluacion_id: Number(indicador.value),
+                        destreza_curricular_id: curriculoListo ? Number(destreza.value) : null,
+                        indicador_evaluacion_id: curriculoListo ? Number(indicador.value) : null,
                         duracion_minutos: Number(copilotoBloque.selectedOptions[0].dataset.duration),
                         titulo_unidad: document.getElementById('titulo_unidad')?.value || null,
                         tema: contenidoActual.tema,
@@ -1185,14 +1509,20 @@
                     }
 
                     const temaLibreVisible = !document.getElementById(`periodos_${periodo}_tema_libre`)?.hidden;
+                    const seleccionAplicada = datos.seleccion ? proponerSeleccion(periodo, datos.seleccion) : false;
                     const camposPropuestos = Object.keys(datos.propuesta || {})
                         .filter(campo => campo !== 'tema' || (temaLibreVisible && !contenidoActual.tema))
                         .filter(campo => proponerCambio(periodo, campo, datos.propuesta[campo]));
                     renderizarCambios();
-                    const primerCampo = camposPropuestos[0] && document.getElementById(`periodos_${periodo}_${camposPropuestos[0]}`);
-                    primerCampo?.closest('.field').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    mostrarEstado(camposPropuestos.length
-                        ? `${camposPropuestos.length === 1 ? 'Un cambio propuesto' : `${camposPropuestos.length} cambios propuestos`} en ${formatearTiempo(Date.now() - inicio)}. Revisa cada campo y elige Mantener o Descartar.`
+                    const totalCambios = camposPropuestos.length + (seleccionAplicada ? 1 : 0);
+                    if (seleccionAplicada) {
+                        cambiosPendientes.get(`periodos_${periodo}_seleccion`)?.irA();
+                    } else if (camposPropuestos[0]) {
+                        document.getElementById(`periodos_${periodo}_${camposPropuestos[0]}`)?.closest('.field')
+                            .scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    mostrarEstado(totalCambios
+                        ? `${totalCambios === 1 ? 'Un cambio propuesto' : `${totalCambios} cambios propuestos`} en ${formatearTiempo(Date.now() - inicio)}${seleccionAplicada ? ', incluida la destreza y su indicador' : ''}. Revisa cada uno y elige Mantener o Descartar.`
                         : 'La propuesta coincide con lo que ya tienes escrito; no hubo cambios.', 'success');
                 } catch (error) {
                     mostrarEstado(error instanceof TypeError && /fetch/i.test(error.message)

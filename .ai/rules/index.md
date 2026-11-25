@@ -10,6 +10,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | {resources/views/Planificaciones/form.blade.php,app/Services/GeneradorPeriodoPlanificacion.php,app/Http/Controllers/AsistentePlanificacionController.php} | .ai/rules/controllers.md |
 | {public/css/**,resources/views/**} | .ai/rules/css-views.md |
 | app/{Actions,Models,Http/Controllers,Http/Requests}/**/*.php,resources/views/Planificaciones/**,tests/Feature/PlanificacionesTest.php | .ai/rules/feature.md |
+| {resources/views/**,public/js/**} | .ai/rules/js.md |
 | app/{Models,Http/Controllers,Http/Requests,Policies}/**/*.php | .ai/rules/requests-policies.md |
 | routes/**, routes/**/*.php | .ai/rules/routes.md |
 | app/Services/GeneradorPeriodoPlanificacion.php | .ai/rules/services.md |

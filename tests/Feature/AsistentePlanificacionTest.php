@@ -141,6 +141,123 @@ class AsistentePlanificacionTest extends TestCase
         });
     }
 
+    public function test_con_tema_libre_elige_una_destreza_y_un_indicador_vinculados(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        $otraDestreza = DestrezaCurricular::create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'codigo' => 'M.2.2.1',
+            'descripcion' => 'Medir longitudes con unidades no convencionales.',
+            'grupo' => 2,
+            'activo' => true,
+        ]);
+        $otroIndicador = IndicadorEvaluacion::create([
+            'materia_id' => $asignacion->materia_id,
+            'grado' => $asignacion->seccion->curso->grado,
+            'codigo' => 'I.M.2.2.1',
+            'descripcion' => 'Mide objetos del entorno.',
+            'grupo' => 2,
+            'activo' => true,
+        ]);
+        $otraDestreza->indicadores()->attach($otroIndicador);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push($this->respuestaGemini((string) json_encode(['destreza' => "D{$destreza->id}", 'indicador' => "I{$otroIndicador->id}"])))
+                ->push($this->respuestaGemini((string) json_encode(['destreza' => "D{$destreza->id}", 'indicador' => "I{$indicador->id}"])))
+                ->push($this->respuestaGemini((string) json_encode($this->propuesta()))),
+        ]);
+
+        $respuesta = $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'duracion_minutos' => 45,
+            'tema' => 'Sucesiones con tapas de colores',
+        ]);
+
+        $respuesta->assertOk()
+            ->assertJsonPath('seleccion.destreza_curricular_id', $destreza->id)
+            ->assertJsonPath('seleccion.indicador_evaluacion_id', $indicador->id)
+            ->assertJsonPath('propuesta.tema', 'Sucesiones con tapas de colores');
+        Http::assertSentCount(3);
+        Http::assertSent(function (Request $request) use ($destreza, $otraDestreza, $otroIndicador): bool {
+            $datos = $request->data();
+            $esquema = $datos['generationConfig']['responseJsonSchema'];
+            $prompt = $datos['contents'][0]['parts'][0]['text'];
+
+            return isset($esquema['properties']['destreza'])
+                && $esquema['properties']['destreza']['enum'] === ["D{$destreza->id}", "D{$otraDestreza->id}"]
+                && in_array("I{$otroIndicador->id}", $esquema['properties']['indicador']['enum'], true)
+                && str_contains($prompt, 'Tema libre definido por el docente: Sucesiones con tapas de colores.')
+                && str_contains($prompt, "Indicadores vinculados: I{$otroIndicador->id}");
+        });
+        Http::assertSent(fn (Request $request): bool => str_contains(
+            $request->data()['contents'][0]['parts'][0]['text'],
+            "Destreza seleccionada: {$destreza->codigo} {$destreza->descripcion}",
+        ));
+    }
+
+    public function test_sin_tema_elige_la_destreza_a_partir_de_las_indicaciones(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push($this->respuestaGemini((string) json_encode(['destreza' => "D{$destreza->id}", 'indicador' => "I{$indicador->id}"])))
+                ->push($this->respuestaGemini((string) json_encode($this->propuesta()))),
+        ]);
+
+        $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'duracion_minutos' => 45,
+            'indicaciones' => 'Clase sobre patrones con tapas de colores.',
+        ])->assertOk()
+            ->assertJsonPath('seleccion.destreza_curricular_id', $destreza->id)
+            ->assertJsonPath('propuesta.tema', 'Patrones numéricos del entorno');
+        Http::assertSent(fn (Request $request): bool => str_contains(
+            $request->data()['contents'][0]['parts'][0]['text'],
+            'deduce el contenido de la clase a partir de sus indicaciones',
+        ));
+    }
+
+    public function test_sin_tema_ni_indicaciones_elige_la_destreza_segun_la_unidad(): void
+    {
+        [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push($this->respuestaGemini((string) json_encode(['destreza' => "D{$destreza->id}", 'indicador' => "I{$indicador->id}"])))
+                ->push($this->respuestaGemini((string) json_encode($this->propuesta()))),
+        ]);
+
+        $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'duracion_minutos' => 45,
+            'titulo_unidad' => 'Curiosidades matemáticas de las hormigas',
+        ])->assertOk()
+            ->assertJsonPath('seleccion.indicador_evaluacion_id', $indicador->id)
+            ->assertJsonPath('propuesta.tema', 'Patrones numéricos del entorno');
+        Http::assertSent(fn (Request $request): bool => str_contains(
+            $request->data()['contents'][0]['parts'][0]['text'],
+            'elige la destreza más pertinente para trabajar la unidad indicada',
+        ));
+    }
+
+    public function test_sin_destreza_exige_un_catalogo_con_indicadores(): void
+    {
+        [$asignacion, $destreza, , $docente] = $this->contextoCurricular();
+        Http::preventStrayRequests();
+
+        $destreza->indicadores()->detach();
+        $this->actingAs($docente)->postJson(route('planificaciones.asistente.periodos.store'), [
+            'asignacion_id' => $asignacion->id,
+            'duracion_minutos' => 45,
+            'tema' => 'Sucesiones',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('destreza_curricular_id');
+        Http::assertNothingSent();
+    }
+
     public function test_rechaza_un_enfoque_o_contenido_que_no_pertenece_al_periodo(): void
     {
         [$asignacion, $destreza, $indicador, $docente] = $this->contextoCurricular();

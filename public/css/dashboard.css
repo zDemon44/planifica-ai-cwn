@@ -18,6 +18,33 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .icon-library { position: absolute; width: 0; height: 0; overflow: hidden; }
 a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 [hidden] { display: none !important; }
+
+/* Selector visual compartido */
+.ui-select { position: relative; width: 100%; min-width: 0; }
+.ui-select-native { position: absolute !important; width: 1px !important; height: 1px !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; opacity: 0 !important; pointer-events: none !important; }
+.ui-select-trigger { position: relative; display: flex; align-items: center; width: 100%; min-width: 0; min-height: 43px; padding: 10px 42px 10px 13px; border: 1px solid #cfd8e6; border-radius: 9px; background: #fff; color: var(--text); font: inherit; line-height: 1.45; text-align: left; cursor: pointer; box-shadow: 0 1px 2px #17366b08; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.ui-select-trigger::after { content: ''; position: absolute; right: 16px; width: 8px; height: 8px; border-right: 2px solid var(--brand); border-bottom: 2px solid var(--brand); transform: translateY(-3px) rotate(45deg); transition: transform .18s ease; }
+.ui-select-trigger:hover:not(:disabled) { border-color: #9caec7; background: #fdfefe; }
+.ui-select-trigger:focus-visible { outline: 0; border-color: var(--brand-light); box-shadow: 0 0 0 4px #315b961a; }
+.ui-select.is-open .ui-select-trigger { border-color: var(--brand-light); box-shadow: 0 0 0 4px #315b961a; }
+.ui-select.is-open .ui-select-trigger::after { transform: translateY(2px) rotate(225deg); }
+.ui-select.is-placeholder .ui-select-trigger { color: #7d899b; }
+.ui-select.is-disabled .ui-select-trigger { border-color: #dfe5ed; background: #f3f5f8; color: #8b97a8; cursor: not-allowed; opacity: 1; box-shadow: none; }
+.ui-select.is-invalid .ui-select-trigger { border-color: #b12e50; box-shadow: 0 0 0 3px #b12e5017; }
+.ui-select-value { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-select-menu { position: fixed; z-index: 220; display: grid; gap: 4px; max-height: 360px; padding: 7px; overflow-x: hidden; overflow-y: auto; border: 1px solid #b9c9dc; border-radius: 12px; background: #fff; box-shadow: 0 18px 44px #102b5530; scrollbar-width: thin; scrollbar-color: #b9c8da transparent; }
+.ui-select-menu::-webkit-scrollbar { width: 7px; }
+.ui-select-menu::-webkit-scrollbar-thumb { border-radius: 99px; background: #b9c8da; }
+.ui-select-group { display: grid; gap: 3px; }
+.ui-select-group + .ui-select-group { margin-top: 4px; padding-top: 5px; border-top: 1px solid #e5ebf2; }
+.ui-select-group-label { position: sticky; z-index: 1; top: -7px; display: block; margin: -1px -1px 2px; padding: 9px 11px 7px; background: #f3f6fa; color: #60718a; font-size: 9px; font-weight: 800; letter-spacing: .65px; text-transform: uppercase; }
+.ui-select-option { position: relative; display: block; width: 100%; min-height: 39px; padding: 9px 12px; border: 0; border-radius: 8px; background: transparent; color: #2d405d; font: inherit; font-size: 12px; line-height: 1.5; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
+.ui-select-option:hover:not(:disabled), .ui-select-option:focus-visible { outline: 0; background: #eef3fa; color: var(--brand); }
+.ui-select-option.is-selected { background: #e7eef8; color: var(--brand); font-weight: 700; }
+.ui-select-option.is-placeholder { color: #7d899b; font-style: italic; }
+.ui-select-option:disabled { background: transparent; color: #a5afbd; cursor: not-allowed; opacity: 1; }
+.ui-select-empty { margin: 0; padding: 14px 12px; color: var(--muted); font-size: 11px; text-align: center; }
+@media (max-width: 700px) { .ui-select-menu { max-width: calc(100vw - 24px); border-radius: 10px; }.ui-select-option { min-height: 42px; padding-block: 10px; } }
 .skip-link { position: fixed; top: -70px; left: 20px; z-index: 100; background: white; padding: 12px; }
 .skip-link:focus { top: 12px; }
 .sidebar { width: 246px; position: fixed; inset: 0 auto 0 0; display: flex; flex-direction: column; background: white; border-right: 1px solid var(--line); padding: 27px 18px 16px; overflow-y: auto; z-index: 30; }

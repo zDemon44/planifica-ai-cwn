@@ -10,7 +10,9 @@ use App\Models\Horario;
 use App\Models\IndicadorEvaluacion;
 use App\Models\ObjetivoCurricular;
 use App\Models\PeriodoAcademico;
+use App\Models\PeriodoPlanificacion;
 use App\Models\Planificacion;
+use App\Models\TemaLibro;
 use App\Models\UnidadLibro;
 use App\Services\CalendarioPlanificaciones;
 use Carbon\Carbon;
@@ -133,11 +135,12 @@ class PlanificacionController extends Controller
         }
 
         $bloquesPlanificacion = $planificacion->exists
-            ? $planificacion->periodos()->get()->map(fn ($periodo): array => [
+            ? $planificacion->periodos()->with('temasTaller:id')->get()->map(fn ($periodo): array => [
                 ...$periodo->only(['orden', 'numero_inicio', 'numero_fin', 'duracion_minutos', 'dia_semana', 'fecha_clase', 'hora_inicio', 'hora_fin']),
                 'dia' => $periodo->dia_semana ? Horario::DIAS[$periodo->dia_semana] : 'Horario anterior',
+                'temas_taller' => $periodo->temasTaller->pluck('id')->all(),
                 ...$periodo->only([
-                    'tema_libro_id',
+                    'tema_libro_id', 'es_taller',
                     'destreza_curricular_id', 'indicador_evaluacion_id',
                     'destrezas_criterios_desempeno', 'indicadores_evaluacion', 'recursos',
                     'tema', 'experiencia', 'dua_experiencia', 'reflexion', 'dua_reflexion',
@@ -245,9 +248,10 @@ class PlanificacionController extends Controller
             $datos['jornada'] = Planificacion::JORNADA_INSTITUCIONAL;
             $planificacion = Planificacion::create($datos);
             $planificacion->objetivosCurriculares()->sync($objetivoIds);
-            $planificacion->periodos()->createMany($periodos->values()->map(
-                fn (array $periodo, int $indice): array => [...array_diff_key($periodo, ['dia' => true, 'incluye_recreo' => true]), ...$contenidos[$indice]]
+            $periodosCreados = $planificacion->periodos()->createMany($periodos->values()->map(
+                fn (array $periodo, int $indice): array => [...array_diff_key($periodo, ['dia' => true, 'incluye_recreo' => true]), ...array_diff_key($contenidos[$indice], ['temas_taller' => true])]
             )->all());
+            $this->sincronizarTemasTaller($periodosCreados->values(), $contenidos);
 
             return $planificacion;
         }, 3);
@@ -286,8 +290,9 @@ class PlanificacionController extends Controller
             $periodos = $registro->periodos()->lockForUpdate()->get();
             $this->validarCantidadPeriodos($periodos->count(), $contenidos);
             foreach ($periodos->values() as $indice => $periodo) {
-                $periodo->update($contenidos[$indice]);
+                $periodo->update(array_diff_key($contenidos[$indice], ['temas_taller' => true]));
             }
+            $this->sincronizarTemasTaller($periodos->values(), $contenidos);
         }, 3);
 
         return redirect()->route('planificaciones.show', $planificacion)->with('success', 'Borrador actualizado.');
@@ -437,7 +442,9 @@ class PlanificacionController extends Controller
 
         foreach ($contenidos as $indice => &$contenido) {
             $temaLibroId = isset($contenido['tema_libro_id']) ? (int) $contenido['tema_libro_id'] : 0;
-            if ($temaLibroId) {
+            if (! empty($contenido['es_taller'])) {
+                $contenido = $this->prepararTaller($asignacion, $contenido, $indice);
+            } elseif ($temaLibroId) {
                 $temaLibro = $unidadLibro?->temas->firstWhere('id', $temaLibroId);
                 if (! $temaLibro || ! $temaLibro->activo) {
                     throw ValidationException::withMessages([
@@ -456,6 +463,10 @@ class PlanificacionController extends Controller
                 $contenido['indicador_evaluacion_id'] = $temaLibro->indicador_evaluacion_id;
             } else {
                 $contenido['tema_libro_id'] = null;
+            }
+            if (empty($contenido['es_taller'])) {
+                $contenido['es_taller'] = false;
+                $contenido['temas_taller'] = [];
             }
 
             $destrezaId = isset($contenido['destreza_curricular_id']) ? (int) $contenido['destreza_curricular_id'] : 0;
@@ -483,6 +494,78 @@ class PlanificacionController extends Controller
         unset($contenido);
 
         return $contenidos;
+    }
+
+    /**
+     * Valida los temas de un bloque de taller y resuelve su destreza e indicador:
+     * deben coincidir con la pareja de alguno de los temas elegidos.
+     *
+     * @param  array<string, mixed>  $contenido
+     * @return array<string, mixed>
+     */
+    private function prepararTaller(Asignacion $asignacion, array $contenido, int $indice): array
+    {
+        $temaIds = collect($contenido['temas_taller'] ?? [])->map(fn ($id): int => (int) $id)->unique()->values();
+        if ($temaIds->isEmpty()) {
+            throw ValidationException::withMessages(["periodos.$indice.temas_taller" => 'Elige al menos un tema para el taller.']);
+        }
+
+        $temas = TemaLibro::whereIn('id', $temaIds)
+            ->where('activo', true)
+            ->whereHas('unidadLibro', fn ($unidades) => $unidades->where('activo', true)
+                ->whereHas('libroTexto', fn ($libros) => $libros
+                    ->where('materia_id', $asignacion->materia_id)
+                    ->where('grado', $asignacion->seccion->curso->grado)
+                    ->where('activo', true)))
+            ->get()
+            ->keyBy('id');
+        if ($temas->count() !== $temaIds->count()) {
+            throw ValidationException::withMessages(["periodos.$indice.temas_taller" => 'Los temas del taller deben pertenecer al libro de esta materia y grado.']);
+        }
+
+        $temasOrdenados = $temaIds->map(fn (int $id): TemaLibro => $temas[$id]);
+        $parejas = $temasOrdenados
+            ->filter(fn (TemaLibro $tema): bool => $tema->destreza_curricular_id && $tema->indicador_evaluacion_id)
+            ->map(fn (TemaLibro $tema): string => $tema->destreza_curricular_id.'-'.$tema->indicador_evaluacion_id)
+            ->unique()
+            ->values();
+        $destrezaId = (int) ($contenido['destreza_curricular_id'] ?? 0);
+        $indicadorId = (int) ($contenido['indicador_evaluacion_id'] ?? 0);
+
+        if ($parejas->isNotEmpty()) {
+            if (! $destrezaId && ! $indicadorId && $parejas->count() === 1) {
+                [$destrezaId, $indicadorId] = array_map('intval', explode('-', $parejas->first()));
+            } elseif (! $parejas->contains("{$destrezaId}-{$indicadorId}")) {
+                throw ValidationException::withMessages(["periodos.$indice.indicador_evaluacion_id" => $parejas->count() > 1
+                    ? 'Los temas del taller tienen destrezas o indicadores distintos: elige con cuál quedarte.'
+                    : 'La destreza y el indicador del taller deben ser los de sus temas.']);
+            }
+        }
+
+        $contenido['es_taller'] = true;
+        $contenido['tema_libro_id'] = null;
+        $contenido['temas_taller'] = $temaIds->all();
+        $contenido['destreza_curricular_id'] = $destrezaId ?: null;
+        $contenido['indicador_evaluacion_id'] = $indicadorId ?: null;
+        if (blank($contenido['tema'] ?? null)) {
+            $contenido['tema'] = 'Taller: '.$temasOrdenados->pluck('titulo')->implode('; ');
+        }
+
+        return $contenido;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $contenidos
+     * @param  iterable<int, PeriodoPlanificacion>  $periodos
+     */
+    private function sincronizarTemasTaller(iterable $periodos, array $contenidos): void
+    {
+        foreach ($periodos as $indice => $periodo) {
+            $periodo->temasTaller()->sync(collect($contenidos[$indice]['temas_taller'] ?? [])
+                ->values()
+                ->mapWithKeys(fn (int $temaId, int $orden): array => [$temaId => ['orden' => $orden + 1]])
+                ->all());
+        }
     }
 
     /** @return array{0: ?UnidadLibro, 1: array<int>, 2: ?string, 3: ?string} */

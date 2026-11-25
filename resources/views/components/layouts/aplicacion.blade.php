@@ -22,6 +22,7 @@
         <link rel="stylesheet" href="{{ asset('css/cronogramas.css') }}?v={{ filemtime(public_path('css/cronogramas.css')) }}">
     @endif
     <script src="{{ asset('js/dashboard.js') }}?v={{ filemtime(public_path('js/dashboard.js')) }}" defer></script>
+    <script src="{{ asset('js/selects.js') }}?v={{ filemtime(public_path('js/selects.js')) }}" defer></script>
     @if(request()->routeIs('cronogramas.*'))
         <script src="{{ asset('vendor/flatpickr/flatpickr.min.js') }}?v={{ filemtime(public_path('vendor/flatpickr/flatpickr.min.js')) }}" defer></script>
         <script src="{{ asset('vendor/flatpickr/l10n/es.js') }}?v={{ filemtime(public_path('vendor/flatpickr/l10n/es.js')) }}" defer></script>
